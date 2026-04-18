@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores/appState';
 
-	const pulseStates = new Set(['listening', 'processing']);
+	const pulseStates = new Set(['listening', 'saving']);
 </script>
 
 <svelte:head>

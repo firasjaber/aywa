@@ -7,11 +7,11 @@
 		<p class="eyebrow">OK speech</p>
 		<h1>Settings</h1>
 		<p class="copy">
-			Phase 1 only includes the tray, the overlay, the global hotkey, and a fake
-			clipboard flow.
+			Phase 2 records audio from the Windows default microphone and saves each
+			push-to-talk capture as a WAV file.
 		</p>
-		<p class="status">Hold Ctrl+Alt+Space to trigger the listening overlay.</p>
-		<p class="hint">More settings will arrive in later phases.</p>
+		<p class="status">Hold Ctrl+Alt+Space to record. Release to save the clip.</p>
+		<p class="hint">Microphone selection and transcription arrive in later phases.</p>
 	</div>
 </section>
 

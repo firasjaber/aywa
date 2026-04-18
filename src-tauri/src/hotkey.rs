@@ -4,14 +4,13 @@ use global_hotkey::{
 };
 use tauri::{AppHandle, Runtime};
 
-use crate::{run_fake_transcription_flow, state::AppState, transition_to};
+use crate::{start_recording, stop_recording};
 
 pub struct HotkeyHandle {
     _manager: GlobalHotKeyManager,
     _hotkey: HotKey,
 }
 
-// This wrapper is only stored to keep the manager alive for the app lifetime.
 unsafe impl Send for HotkeyHandle {}
 unsafe impl Sync for HotkeyHandle {}
 
@@ -29,13 +28,11 @@ pub fn register<R: Runtime>(app: AppHandle<R>) -> Result<HotkeyHandle, String> {
         }
 
         if event.state == HotKeyState::Pressed {
-            let _ = transition_to(&app_for_events, AppState::Listening);
+            let _ = start_recording(&app_for_events);
         }
 
-        if event.state == HotKeyState::Released
-            && transition_to(&app_for_events, AppState::Processing).unwrap_or(false)
-        {
-            run_fake_transcription_flow(app_for_events.clone());
+        if event.state == HotKeyState::Released {
+            let _ = stop_recording(&app_for_events);
         }
     }));
 

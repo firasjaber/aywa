@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { readable } from 'svelte/store';
 
-export type AppState = 'ready' | 'listening' | 'processing' | 'completed';
+export type AppState = 'ready' | 'listening' | 'saving' | 'error';
 
 export type AppStatePayload = {
 	state: AppState;
