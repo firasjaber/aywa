@@ -1,0 +1,36 @@
+:root {
+	font-family: 'Segoe UI Variable Text', 'Aptos', 'Trebuchet MS', sans-serif;
+	color: #131718;
+	background: #f3efe7;
+	color-scheme: light;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body {
+	margin: 0;
+	min-height: 100%;
+}
+
+body {
+	min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+	font: inherit;
+}
+
+button {
+	border: 0;
+	background: none;
+}
+
+* {
+	box-sizing: border-box;
+}
