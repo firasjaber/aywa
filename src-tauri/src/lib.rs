@@ -12,6 +12,10 @@ use tauri::{AppHandle, Manager, Runtime, State};
 
 use crate::{
     audio::RecorderSession,
+    model_manager::{
+        service::{ModelManagerSnapshot, ModelManagerState},
+        types::ModelId,
+    },
     state::{AppState, AppStateManager},
 };
 
@@ -157,4 +161,55 @@ pub fn hide_overlay(app: AppHandle) -> Result<(), String> {
 
 pub fn toggle_overlay(app: AppHandle) -> Result<bool, String> {
     overlay::toggle_overlay(&app).map_err(|error| error.to_string())
+}
+
+pub fn startup_model_manager<R: Runtime>(app: &AppHandle<R>) -> Result<ModelManagerSnapshot, String> {
+    let state: State<'_, ModelManagerState> = app.state();
+    model_manager::service::startup_reconcile(app, state.inner())
+}
+
+pub fn list_models(state: &ModelManagerState) -> ModelManagerSnapshot {
+    model_manager::service::list_models(state)
+}
+
+pub fn select_model<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+    model_id: ModelId,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::select_model(app, state, model_id)
+}
+
+pub fn download_model<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+    model_id: ModelId,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::download_model(app, state, model_id)
+}
+
+pub fn load_model<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+    model_id: ModelId,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::load_model(app, state, model_id)
+}
+
+pub fn unload_model<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::unload_model(app, state)
+}
+
+pub fn get_model_status(state: &ModelManagerState) -> ModelManagerSnapshot {
+    model_manager::service::get_model_status(state)
+}
+
+pub fn clear_model_cache<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::clear_model_cache(app, state)
 }

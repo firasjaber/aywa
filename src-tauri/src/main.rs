@@ -7,7 +7,14 @@ use tauri::{
     AppHandle, Manager, State,
 };
 
-use ok_lib::{state::AppStateManager, RuntimeHandles};
+use ok_lib::{
+    model_manager::{
+        service::{ModelManagerSnapshot, ModelManagerState},
+        types::ModelId,
+    },
+    state::AppStateManager,
+    RuntimeHandles,
+};
 
 const SETTINGS_MENU_ID: &str = "settings";
 const QUIT_MENU_ID: &str = "quit";
@@ -73,10 +80,64 @@ fn get_current_state(state: State<'_, AppStateManager>) -> ok_lib::state::AppSta
     ok_lib::state::get_current_state(state)
 }
 
+#[tauri::command]
+fn list_models(state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
+    ok_lib::list_models(state.inner())
+}
+
+#[tauri::command]
+fn select_model(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+    model_id: ModelId,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::select_model(&app, state.inner(), model_id)
+}
+
+#[tauri::command]
+fn download_model(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+    model_id: ModelId,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::download_model(&app, state.inner(), model_id)
+}
+
+#[tauri::command]
+fn load_model(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+    model_id: ModelId,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::load_model(&app, state.inner(), model_id)
+}
+
+#[tauri::command]
+fn unload_model(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::unload_model(&app, state.inner())
+}
+
+#[tauri::command]
+fn get_model_status(state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
+    ok_lib::get_model_status(state.inner())
+}
+
+#[tauri::command]
+fn clear_model_cache(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::clear_model_cache(&app, state.inner())
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(AppStateManager::default())
         .manage(RuntimeHandles::default())
+        .manage(ModelManagerState::default())
         .setup(|app| {
             ok_lib::configure_windows(&app.handle())?;
             build_tray(&app.handle())?;
@@ -92,6 +153,9 @@ fn main() {
             }
 
             let _ = app.state::<AppStateManager>().emit_current(&app.handle());
+            if let Err(error) = ok_lib::startup_model_manager(&app.handle()) {
+                eprintln!("failed to reconcile model manager state: {error}");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -99,7 +163,14 @@ fn main() {
             get_current_state,
             show_overlay,
             hide_overlay,
-            toggle_overlay
+            toggle_overlay,
+            list_models,
+            select_model,
+            download_model,
+            load_model,
+            unload_model,
+            get_model_status,
+            clear_model_cache
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
