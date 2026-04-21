@@ -3,6 +3,7 @@ pub mod clipboard;
 pub mod hotkey;
 pub mod model_manager;
 pub mod overlay;
+pub mod runtime_profile;
 pub mod state;
 pub mod transcribe;
 
@@ -16,17 +17,20 @@ use crate::{
         service::{ModelManagerSnapshot, ModelManagerState},
         types::ModelId,
     },
+    runtime_profile::types::RuntimeSelectionMode,
     state::{AppState, AppStateManager},
 };
 
 pub const MAIN_WINDOW_LABEL: &str = "main";
 pub const OVERLAY_WINDOW_LABEL: &str = "overlay";
 pub const APP_STATE_EVENT: &str = "app-state-changed";
-pub const ERROR_RESET_DELAY_MS: u64 = 1_500;
+pub const COMPLETED_RESET_DELAY_MS: u64 = 1_000;
+pub const ERROR_RESET_DELAY_MS: u64 = 4_000;
 
 pub struct RuntimeHandles {
     pub hotkey: std::sync::Mutex<Option<hotkey::HotkeyHandle>>,
     pub recorder: std::sync::Mutex<Option<RecorderSession>>,
+    pub transcription: std::sync::Mutex<Option<transcribe::WorkerHandle>>,
 }
 
 impl Default for RuntimeHandles {
@@ -34,6 +38,7 @@ impl Default for RuntimeHandles {
         Self {
             hotkey: std::sync::Mutex::new(None),
             recorder: std::sync::Mutex::new(None),
+            transcription: std::sync::Mutex::new(None),
         }
     }
 }
@@ -63,15 +68,35 @@ pub fn transition_to<R: Runtime>(
 }
 
 pub fn recordings_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let base = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|error| error.to_string())?;
+    let base = app_data_dir(app)?;
 
     Ok(base.join("runtime").join("recordings"))
 }
 
+pub fn app_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    app.path()
+        .app_local_data_dir()
+        .map_err(|error| error.to_string())
+}
+
+pub fn bootstrap_transcription_runtime<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    transcribe::bootstrap_runtime(&app_data_dir(app)?)
+}
+
 pub fn start_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let handles: State<'_, RuntimeHandles> = app.state();
+    if handles
+        .transcription
+        .lock()
+        .map_err(|_| "transcription mutex poisoned".to_string())?
+        .is_none()
+    {
+        let error = "Load a model before recording".to_string();
+        transition_to(app, AppState::Error, Some(error.clone()))?;
+        schedule_error_reset(app.clone());
+        return Err(error);
+    }
+
     if !transition_to(app, AppState::Listening, None)? {
         return Ok(());
     }
@@ -79,7 +104,6 @@ pub fn start_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let output_dir = recordings_dir(app)?;
     match RecorderSession::start(&output_dir) {
         Ok(session) => {
-            let handles: State<'_, RuntimeHandles> = app.state();
             *handles
                 .recorder
                 .lock()
@@ -88,17 +112,13 @@ pub fn start_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
         }
         Err(error) => {
             transition_to(app, AppState::Error, Some(error.clone()))?;
-            schedule_ready_reset(app.clone());
+            schedule_error_reset(app.clone());
             Err(error)
         }
     }
 }
 
 pub fn stop_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    if !transition_to(app, AppState::Saving, None)? {
-        return Ok(());
-    }
-
     let handles: State<'_, RuntimeHandles> = app.state();
     let session = handles
         .recorder
@@ -116,22 +136,51 @@ pub fn stop_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
                 result.sample_rate,
                 result.sample_count
             );
-            let _ = transition_to(app, AppState::Ready, None)?;
-            Ok(())
+
+            transition_to(app, AppState::Processing, None)?;
+
+            match transcribe::transcribe_file(app, &result.path) {
+                Ok(transcription) => {
+                    clipboard::copy_text(&transcription.text)?;
+
+                    let completed_message = if clipboard::paste_clipboard().is_ok() {
+                        "Pasted".to_string()
+                    } else {
+                        "Copied to clipboard".to_string()
+                    };
+
+                    transition_to(app, AppState::Completed, Some(completed_message))?;
+                    schedule_completed_reset(app.clone());
+                    Ok(())
+                }
+                Err(error) => {
+                    transition_to(app, AppState::Error, Some(error.clone()))?;
+                    schedule_error_reset(app.clone());
+                    Err(error)
+                }
+            }
         }
         Err(error) => {
             transition_to(app, AppState::Error, Some(error.clone()))?;
-            schedule_ready_reset(app.clone());
+            schedule_error_reset(app.clone());
             Err(error)
         }
     }
 }
 
-fn schedule_ready_reset<R: Runtime>(app: AppHandle<R>) {
+fn schedule_reset<R: Runtime>(app: AppHandle<R>, delay_ms: u64) {
     thread::spawn(move || {
-        thread::sleep(Duration::from_millis(ERROR_RESET_DELAY_MS));
+        thread::sleep(Duration::from_millis(delay_ms));
         let _ = transition_to(&app, AppState::Ready, None);
     });
+}
+
+fn schedule_completed_reset<R: Runtime>(app: AppHandle<R>) {
+    schedule_reset(app, COMPLETED_RESET_DELAY_MS);
+}
+
+fn schedule_error_reset<R: Runtime>(app: AppHandle<R>) {
+    schedule_reset(app, ERROR_RESET_DELAY_MS);
 }
 
 pub fn reveal_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -168,8 +217,8 @@ pub fn startup_model_manager<R: Runtime>(app: &AppHandle<R>) -> Result<ModelMana
     model_manager::service::startup_reconcile(app, state.inner())
 }
 
-pub fn list_models(state: &ModelManagerState) -> ModelManagerSnapshot {
-    model_manager::service::list_models(state)
+pub fn list_models<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) -> ModelManagerSnapshot {
+    model_manager::service::list_models(app, state)
 }
 
 pub fn select_model<R: Runtime>(
@@ -203,8 +252,8 @@ pub fn unload_model<R: Runtime>(
     model_manager::service::unload_model(app, state)
 }
 
-pub fn get_model_status(state: &ModelManagerState) -> ModelManagerSnapshot {
-    model_manager::service::get_model_status(state)
+pub fn get_model_status<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) -> ModelManagerSnapshot {
+    model_manager::service::get_model_status(app, state)
 }
 
 pub fn clear_model_cache<R: Runtime>(
@@ -212,4 +261,48 @@ pub fn clear_model_cache<R: Runtime>(
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
     model_manager::service::clear_model_cache(app, state)
+}
+
+pub fn set_runtime_selection_mode<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+    selection_mode: RuntimeSelectionMode,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::set_runtime_selection_mode(app, state, selection_mode)
+}
+
+pub fn select_runtime_profile<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+    profile_id: String,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::select_runtime_profile(app, state, profile_id)
+}
+
+pub fn apply_runtime_profile_now<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::apply_runtime_profile_now(app, state)
+}
+
+pub fn test_runtime_profile<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::test_runtime_profile(app, state)
+}
+
+pub fn redetect_runtime_profile<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::redetect_runtime_profile(app, state)
+}
+
+pub fn reset_runtime_profile_to_auto<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    model_manager::service::reset_runtime_profile_to_auto(app, state)
 }

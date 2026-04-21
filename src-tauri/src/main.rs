@@ -12,6 +12,7 @@ use ok_lib::{
         service::{ModelManagerSnapshot, ModelManagerState},
         types::ModelId,
     },
+    runtime_profile::types::RuntimeSelectionMode,
     state::AppStateManager,
     RuntimeHandles,
 };
@@ -81,8 +82,8 @@ fn get_current_state(state: State<'_, AppStateManager>) -> ok_lib::state::AppSta
 }
 
 #[tauri::command]
-fn list_models(state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
-    ok_lib::list_models(state.inner())
+fn list_models(app: AppHandle, state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
+    ok_lib::list_models(&app, state.inner())
 }
 
 #[tauri::command]
@@ -121,8 +122,8 @@ fn unload_model(
 }
 
 #[tauri::command]
-fn get_model_status(state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
-    ok_lib::get_model_status(state.inner())
+fn get_model_status(app: AppHandle, state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
+    ok_lib::get_model_status(&app, state.inner())
 }
 
 #[tauri::command]
@@ -133,6 +134,56 @@ fn clear_model_cache(
     ok_lib::clear_model_cache(&app, state.inner())
 }
 
+#[tauri::command]
+fn set_runtime_selection_mode(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+    selection_mode: RuntimeSelectionMode,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::set_runtime_selection_mode(&app, state.inner(), selection_mode)
+}
+
+#[tauri::command]
+fn select_runtime_profile(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+    profile_id: String,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::select_runtime_profile(&app, state.inner(), profile_id)
+}
+
+#[tauri::command]
+fn apply_runtime_profile_now(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::apply_runtime_profile_now(&app, state.inner())
+}
+
+#[tauri::command]
+fn test_runtime_profile(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::test_runtime_profile(&app, state.inner())
+}
+
+#[tauri::command]
+fn redetect_runtime_profile(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::redetect_runtime_profile(&app, state.inner())
+}
+
+#[tauri::command]
+fn reset_runtime_profile_to_auto(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+) -> Result<ModelManagerSnapshot, String> {
+    ok_lib::reset_runtime_profile_to_auto(&app, state.inner())
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(AppStateManager::default())
@@ -141,6 +192,10 @@ fn main() {
         .setup(|app| {
             ok_lib::configure_windows(&app.handle())?;
             build_tray(&app.handle())?;
+
+            if let Err(error) = ok_lib::bootstrap_transcription_runtime(&app.handle()) {
+                eprintln!("failed to bootstrap transcription runtime: {error}");
+            }
 
             match ok_lib::hotkey::register(app.handle().clone()) {
                 Ok(handle) => {
@@ -170,7 +225,13 @@ fn main() {
             load_model,
             unload_model,
             get_model_status,
-            clear_model_cache
+            clear_model_cache,
+            set_runtime_selection_mode,
+            select_runtime_profile,
+            apply_runtime_profile_now,
+            test_runtime_profile,
+            redetect_runtime_profile,
+            reset_runtime_profile_to_auto
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

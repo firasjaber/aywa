@@ -8,11 +8,18 @@ use std::{
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use crate::model_manager::{
-    catalog, download, manifest,
-    registry::{self, ModelRegistry},
-    runtime,
-    types::{InstalledModel, ModelId, ModelStatus, PreparedModel, RuntimePreflight},
+use crate::{
+    model_manager::{
+        catalog, download, manifest,
+        registry::{self, ModelRegistry},
+        runtime,
+        types::{
+            InstalledModel, ModelId, ModelStatus, PreparedModel, RuntimePreflight,
+            WorkerCudaStatus, WorkerRuntimeBootstrap, WorkerRuntimeBootstrapStatus,
+        },
+    },
+    runtime_profile::{self, types::RuntimeProfileSnapshot},
+    transcribe,
 };
 
 pub const MODEL_MANAGER_EVENT: &str = "model-manager-changed";
@@ -33,6 +40,9 @@ pub struct ModelManagerSnapshot {
     pub selected_model_id: ModelId,
     pub loaded_model_id: Option<ModelId>,
     pub runtime_preflight: RuntimePreflight,
+    pub worker_cuda_status: WorkerCudaStatus,
+    pub worker_runtime_bootstrap: WorkerRuntimeBootstrap,
+    pub runtime_profile: RuntimeProfileSnapshot,
     pub ready_for_transcription: bool,
     pub models: Vec<ModelRow>,
 }
@@ -40,6 +50,8 @@ pub struct ModelManagerSnapshot {
 pub struct ModelManagerState {
     pub registry: Mutex<ModelRegistry>,
     pub transient_statuses: Mutex<BTreeMap<String, ModelStatus>>,
+    pub worker_cuda_status: Mutex<WorkerCudaStatus>,
+    pub worker_runtime_bootstrap: Mutex<WorkerRuntimeBootstrap>,
 }
 
 impl Default for ModelManagerState {
@@ -47,12 +59,17 @@ impl Default for ModelManagerState {
         Self {
             registry: Mutex::new(ModelRegistry::default()),
             transient_statuses: Mutex::new(BTreeMap::new()),
+            worker_cuda_status: Mutex::new(default_worker_cuda_status()),
+            worker_runtime_bootstrap: Mutex::new(WorkerRuntimeBootstrap {
+                status: WorkerRuntimeBootstrapStatus::Idle,
+                message: None,
+            }),
         }
     }
 }
 
 impl ModelManagerState {
-    pub fn snapshot(&self) -> ModelManagerSnapshot {
+    pub fn snapshot<R: Runtime>(&self, app: &AppHandle<R>) -> ModelManagerSnapshot {
         let registry = self
             .registry
             .lock()
@@ -63,7 +80,38 @@ impl ModelManagerState {
             .lock()
             .expect("transient status mutex poisoned")
             .clone();
-        snapshot_from_registry(&registry, &transient_statuses)
+        let worker_cuda_status = self
+            .worker_cuda_status
+            .lock()
+            .expect("worker cuda status mutex poisoned")
+            .clone();
+        let worker_runtime_bootstrap = self
+            .worker_runtime_bootstrap
+            .lock()
+            .expect("worker bootstrap mutex poisoned")
+            .clone();
+        let runtime_profile = runtime_profile::service::load_runtime_profile_snapshot(
+            app,
+            &worker_runtime_bootstrap,
+        )
+        .unwrap_or_else(|_| runtime_profile::service::default_runtime_profile_snapshot());
+        snapshot_from_registry(
+            &registry,
+            &transient_statuses,
+            worker_cuda_status,
+            worker_runtime_bootstrap,
+            runtime_profile,
+        )
+    }
+}
+
+fn default_worker_cuda_status() -> WorkerCudaStatus {
+    WorkerCudaStatus {
+        cuda_available: false,
+        reason: Some("Python worker runtime has not been checked yet".to_string()),
+        gpu_name: None,
+        torch_version: None,
+        cuda_version: None,
     }
 }
 
@@ -92,12 +140,12 @@ pub fn prepare_model(installed: &InstalledModel, model_id: ModelId) -> PreparedM
     }
 }
 
-pub fn list_models(state: &ModelManagerState) -> ModelManagerSnapshot {
-    state.snapshot()
+pub fn list_models<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) -> ModelManagerSnapshot {
+    state.snapshot(app)
 }
 
-pub fn get_model_status(state: &ModelManagerState) -> ModelManagerSnapshot {
-    state.snapshot()
+pub fn get_model_status<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) -> ModelManagerSnapshot {
+    state.snapshot(app)
 }
 
 pub fn startup_reconcile<R: Runtime>(
@@ -116,6 +164,9 @@ pub fn startup_reconcile<R: Runtime>(
                     registry
                         .model_errors
                         .insert(model_id.as_str().to_string(), error.to_string());
+                    changed = true;
+                } else {
+                    registry.loaded_model_id = None;
                     changed = true;
                 }
             }
@@ -142,6 +193,7 @@ pub fn startup_reconcile<R: Runtime>(
         registry::save(&path, &registry).map_err(|error| error.to_string())?;
     }
 
+    schedule_runtime_bootstrap(app, state)?;
     emit_snapshot(app, state)
 }
 
@@ -322,6 +374,29 @@ pub fn load_model<R: Runtime>(
     state: &ModelManagerState,
     model_id: ModelId,
 ) -> Result<ModelManagerSnapshot, String> {
+    match current_bootstrap_status(state)? {
+        WorkerRuntimeBootstrapStatus::Ready => {}
+        WorkerRuntimeBootstrapStatus::Idle => {
+            schedule_runtime_bootstrap(app, state)?;
+            return Err("Transcription runtime is still being prepared. Check Settings for progress.".to_string());
+        }
+        WorkerRuntimeBootstrapStatus::Error => {
+            let bootstrap = state
+                .worker_runtime_bootstrap
+                .lock()
+                .map_err(|_| "worker bootstrap mutex poisoned".to_string())?
+                .clone();
+            return Err(
+                bootstrap
+                    .message
+                    .unwrap_or_else(|| "Transcription runtime setup failed. Check Settings for details.".to_string()),
+            );
+        }
+        _ => {
+            return Err("Transcription runtime is still being prepared. Check Settings for progress.".to_string());
+        }
+    }
+
     let installed = {
         let registry = state
             .registry
@@ -339,6 +414,22 @@ pub fn load_model<R: Runtime>(
             .registry
             .lock()
             .map_err(|_| "model registry mutex poisoned".to_string())?;
+        registry
+            .model_errors
+            .insert(model_id.as_str().to_string(), error.clone());
+        registry::save(&path, &registry).map_err(|save_error| save_error.to_string())?;
+        drop(registry);
+        let _ = emit_snapshot(app, state);
+        return Err(error);
+    }
+
+    if let Err(error) = transcribe::ensure_loaded(app, model_id, &prepared.model_path) {
+        let path = registry_path(app).map_err(|path_error| path_error.to_string())?;
+        let mut registry = state
+            .registry
+            .lock()
+            .map_err(|_| "model registry mutex poisoned".to_string())?;
+        registry.loaded_model_id = None;
         registry
             .model_errors
             .insert(model_id.as_str().to_string(), error.clone());
@@ -366,6 +457,8 @@ pub fn unload_model<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
+    transcribe::unload(app)?;
+
     let path = registry_path(app).map_err(|error| error.to_string())?;
 
     {
@@ -425,14 +518,156 @@ pub fn clear_model_cache<R: Runtime>(
         "[model_manager] clear_model_cache success registry_path={}",
         path.display()
     );
+    schedule_runtime_bootstrap(app, state)?;
     emit_snapshot(app, state)
+}
+
+pub fn set_runtime_selection_mode<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+    selection_mode: runtime_profile::types::RuntimeSelectionMode,
+) -> Result<ModelManagerSnapshot, String> {
+    runtime_profile::service::set_selection_mode(app, selection_mode)?;
+    schedule_runtime_bootstrap(app, state)?;
+    emit_snapshot(app, state)
+}
+
+pub fn select_runtime_profile<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+    profile_id: String,
+) -> Result<ModelManagerSnapshot, String> {
+    runtime_profile::service::select_profile(app, &profile_id)?;
+    schedule_runtime_bootstrap(app, state)?;
+    emit_snapshot(app, state)
+}
+
+pub fn apply_runtime_profile_now<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    runtime_profile::service::force_reprovision(app)?;
+    schedule_runtime_bootstrap(app, state)?;
+    emit_snapshot(app, state)
+}
+
+pub fn test_runtime_profile<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    runtime_profile::service::force_reprovision(app)?;
+    schedule_runtime_bootstrap(app, state)?;
+    emit_snapshot(app, state)
+}
+
+pub fn redetect_runtime_profile<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    runtime_profile::service::force_reprovision(app)?;
+    schedule_runtime_bootstrap(app, state)?;
+    emit_snapshot(app, state)
+}
+
+pub fn reset_runtime_profile_to_auto<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<ModelManagerSnapshot, String> {
+    runtime_profile::service::reset_to_auto(app)?;
+    schedule_runtime_bootstrap(app, state)?;
+    emit_snapshot(app, state)
+}
+
+fn current_bootstrap_status(state: &ModelManagerState) -> Result<WorkerRuntimeBootstrapStatus, String> {
+    state
+        .worker_runtime_bootstrap
+        .lock()
+        .map(|bootstrap| bootstrap.status)
+        .map_err(|_| "worker bootstrap mutex poisoned".to_string())
+}
+
+fn schedule_runtime_bootstrap<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> Result<(), String> {
+    {
+        let mut bootstrap = state
+            .worker_runtime_bootstrap
+            .lock()
+            .map_err(|_| "worker bootstrap mutex poisoned".to_string())?;
+
+        if matches!(
+            bootstrap.status,
+            WorkerRuntimeBootstrapStatus::Checking
+                | WorkerRuntimeBootstrapStatus::UpgradingPip
+                | WorkerRuntimeBootstrapStatus::InstallingCudaTorch
+                | WorkerRuntimeBootstrapStatus::InstallingWorkerRequirements
+                | WorkerRuntimeBootstrapStatus::FallingBackToCpu
+                | WorkerRuntimeBootstrapStatus::SmokeTesting
+        ) {
+            return Ok(());
+        }
+
+        bootstrap.status = WorkerRuntimeBootstrapStatus::Checking;
+        bootstrap.message = Some("Checking Python transcription runtime".to_string());
+    }
+
+    let _ = emit_snapshot(app, state);
+    let app = app.clone();
+
+    thread::spawn(move || {
+        let state = app.state::<ModelManagerState>();
+        let emit_progress = |status: WorkerRuntimeBootstrapStatus,
+                             message: Option<String>,
+                             worker_cuda_status: Option<WorkerCudaStatus>| {
+            if let Ok(mut bootstrap) = state.worker_runtime_bootstrap.lock() {
+                bootstrap.status = status;
+                bootstrap.message = message;
+            }
+
+            if let Some(worker_cuda_status) = worker_cuda_status {
+                if let Ok(mut current) = state.worker_cuda_status.lock() {
+                    *current = worker_cuda_status;
+                }
+            }
+
+            let _ = emit_snapshot(&app, state.inner());
+        };
+
+        match transcribe::prepare_worker_runtime(&app, emit_progress) {
+            Ok(worker_cuda_status) => emit_progress(
+                WorkerRuntimeBootstrapStatus::Ready,
+                Some(if worker_cuda_status.cuda_available {
+                    "Python runtime is ready and can use CUDA".to_string()
+                } else {
+                    "Python runtime is ready and will use CPU fallback".to_string()
+                }),
+                Some(worker_cuda_status),
+            ),
+            Err(error) => {
+                emit_progress(
+                    WorkerRuntimeBootstrapStatus::Error,
+                    Some(error.clone()),
+                    Some(WorkerCudaStatus {
+                        cuda_available: false,
+                        reason: Some(error),
+                        gpu_name: None,
+                        torch_version: None,
+                        cuda_version: None,
+                    }),
+                );
+            }
+        }
+    });
+
+    Ok(())
 }
 
 fn emit_snapshot<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
-    let snapshot = state.snapshot();
+    let snapshot = state.snapshot(app);
     app.emit(MODEL_MANAGER_EVENT, &snapshot)
         .map_err(|error| error.to_string())?;
     Ok(snapshot)
@@ -441,6 +676,9 @@ fn emit_snapshot<R: Runtime>(
 fn snapshot_from_registry(
     registry: &ModelRegistry,
     transient_statuses: &BTreeMap<String, ModelStatus>,
+    worker_cuda_status: WorkerCudaStatus,
+    worker_runtime_bootstrap: WorkerRuntimeBootstrap,
+    runtime_profile: RuntimeProfileSnapshot,
 ) -> ModelManagerSnapshot {
     let runtime_preflight = runtime::preflight();
     let models = catalog::all_model_ids()
@@ -448,14 +686,15 @@ fn snapshot_from_registry(
         .copied()
         .map(|model_id| {
             let error_message = registry.model_errors.get(model_id.as_str()).cloned();
+            let is_installed = registry.installed.contains_key(model_id.as_str());
             let status = if let Some(status) = transient_statuses.get(model_id.as_str()) {
                 *status
             } else if registry.loaded_model_id == Some(model_id) {
                 ModelStatus::Loaded
+            } else if is_installed {
+                ModelStatus::Downloaded
             } else if error_message.is_some() {
                 ModelStatus::Error
-            } else if registry.installed.contains_key(model_id.as_str()) {
-                ModelStatus::Downloaded
             } else {
                 ModelStatus::NotDownloaded
             };
@@ -469,24 +708,88 @@ fn snapshot_from_registry(
             }
         })
         .collect();
+    let runtime_ready = worker_runtime_bootstrap.status == WorkerRuntimeBootstrapStatus::Ready
+        && runtime_profile.active_profile_id.is_some();
 
     ModelManagerSnapshot {
         selected_model_id: registry.selected_model_id,
         loaded_model_id: registry.loaded_model_id,
-        ready_for_transcription: registry.loaded_model_id.is_some() && runtime_preflight.supported,
+        ready_for_transcription: registry.loaded_model_id.is_some() && runtime_ready,
         runtime_preflight,
+        worker_cuda_status,
+        worker_runtime_bootstrap,
+        runtime_profile,
         models,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::model_manager::types::ModelId;
+    use std::collections::BTreeMap;
+
+    use crate::model_manager::{
+        registry::ModelRegistry,
+        types::{
+            InstalledModel, ModelId, ModelStatus, WorkerCudaStatus, WorkerRuntimeBootstrap,
+            WorkerRuntimeBootstrapStatus,
+        },
+    };
+    use crate::runtime_profile::service::default_runtime_profile_snapshot;
+
+    use super::snapshot_from_registry;
 
     #[test]
     fn loading_a_new_model_replaces_the_old_one() {
         let _loaded = Some(ModelId::ParakeetV02En);
         let loaded = Some(ModelId::ParakeetV03Multilingual);
         assert_eq!(loaded, Some(ModelId::ParakeetV03Multilingual));
+    }
+
+    #[test]
+    fn loaded_model_id_is_not_set_before_worker_ready() {
+        let registry = crate::model_manager::registry::ModelRegistry::default();
+        assert_eq!(registry.loaded_model_id, None);
+    }
+
+    #[test]
+    fn installed_model_with_runtime_error_stays_downloaded() {
+        let mut registry = ModelRegistry::default();
+        registry.installed.insert(
+            ModelId::ParakeetV02En.as_str().to_string(),
+            InstalledModel {
+                version: "sha256-test".to_string(),
+                sha256: "abc".to_string(),
+                model_path: std::path::PathBuf::from("C:/models/model.nemo"),
+            },
+        );
+        registry.model_errors.insert(
+            ModelId::ParakeetV02En.as_str().to_string(),
+            "worker crashed".to_string(),
+        );
+
+        let snapshot = snapshot_from_registry(
+            &registry,
+            &BTreeMap::new(),
+            WorkerCudaStatus {
+                cuda_available: false,
+                reason: Some("probe unavailable in unit test".to_string()),
+                gpu_name: None,
+                torch_version: None,
+                cuda_version: None,
+            },
+            WorkerRuntimeBootstrap {
+                status: WorkerRuntimeBootstrapStatus::Ready,
+                message: Some("ready".to_string()),
+            },
+            default_runtime_profile_snapshot(),
+        );
+        let row = snapshot
+            .models
+            .iter()
+            .find(|row| row.model_id == ModelId::ParakeetV02En)
+            .unwrap();
+
+        assert_eq!(row.status, ModelStatus::Downloaded);
+        assert_eq!(row.error_message.as_deref(), Some("worker crashed"));
     }
 }
