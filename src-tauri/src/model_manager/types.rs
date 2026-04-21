@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, Hash)]
-#[serde(rename_all = "kebab-case")]
 pub enum ModelId {
+    #[serde(rename = "parakeet-v0.2-en", alias = "parakeet-v02-en")]
     ParakeetV02En,
+    #[serde(rename = "parakeet-v0.3-multilingual", alias = "parakeet-v03-multilingual")]
     ParakeetV03Multilingual,
 }
 
@@ -32,6 +33,35 @@ pub struct RuntimePreflight {
     pub reason: Option<String>,
     pub gpu_name: Option<String>,
     pub driver_version: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct WorkerCudaStatus {
+    pub cuda_available: bool,
+    pub reason: Option<String>,
+    pub gpu_name: Option<String>,
+    pub torch_version: Option<String>,
+    pub cuda_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkerRuntimeBootstrapStatus {
+    Idle,
+    Checking,
+    UpgradingPip,
+    InstallingCudaTorch,
+    InstallingWorkerRequirements,
+    FallingBackToCpu,
+    SmokeTesting,
+    Ready,
+    Error,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct WorkerRuntimeBootstrap {
+    pub status: WorkerRuntimeBootstrapStatus,
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
