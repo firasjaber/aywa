@@ -1,0 +1,70 @@
+{
+  "version": "2026-04-21-runtime-profiles",
+  "profiles": [
+    {
+      "profile_id": "cpu",
+      "label": "CPU fallback",
+      "stability": "stable",
+      "install_source": "https://download.pytorch.org/whl/cpu",
+      "packages": [
+        "torch==2.6.0",
+        "torchaudio==2.6.0"
+      ],
+      "auto_eligible": true,
+      "vendor": null,
+      "capability_range": null,
+      "min_driver_version": null
+    },
+    {
+      "profile_id": "nvidia-legacy",
+      "label": "NVIDIA legacy",
+      "stability": "stable",
+      "install_source": "https://download.pytorch.org/whl/cu118",
+      "packages": [
+        "torch==2.6.0",
+        "torchaudio==2.6.0"
+      ],
+      "auto_eligible": true,
+      "vendor": "nvidia",
+      "capability_range": {
+        "min": 50,
+        "max": 75
+      },
+      "min_driver_version": "522.06"
+    },
+    {
+      "profile_id": "nvidia-current",
+      "label": "NVIDIA current",
+      "stability": "stable",
+      "install_source": "https://download.pytorch.org/whl/cu124",
+      "packages": [
+        "torch==2.6.0",
+        "torchaudio==2.6.0"
+      ],
+      "auto_eligible": true,
+      "vendor": "nvidia",
+      "capability_range": {
+        "min": 80,
+        "max": 90
+      },
+      "min_driver_version": "551.61"
+    },
+    {
+      "profile_id": "nvidia-latest",
+      "label": "NVIDIA latest",
+      "stability": "preview",
+      "install_source": "https://download.pytorch.org/whl/cu128",
+      "packages": [
+        "torch==2.7.0",
+        "torchaudio==2.7.0"
+      ],
+      "auto_eligible": true,
+      "vendor": "nvidia",
+      "capability_range": {
+        "min": 100,
+        "max": null
+      },
+      "min_driver_version": "572.16"
+    }
+  ]
+}
