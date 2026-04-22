@@ -46,11 +46,6 @@ pub fn preflight() -> RuntimePreflight {
 }
 
 pub fn load_check(model: &PreparedModel) -> anyhow::Result<()> {
-    let preflight = preflight();
-    if !preflight.supported {
-        anyhow::bail!(preflight.reason.unwrap_or_else(|| "runtime unsupported".to_string()));
-    }
-
     if !model.model_path.exists() {
         anyhow::bail!("installed model file is missing");
     }
