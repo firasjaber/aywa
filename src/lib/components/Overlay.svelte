@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores/appState';
 
-	const pulseStates = new Set(['listening', 'saving']);
+	const pulseStates = new Set(['listening', 'processing']);
 </script>
 
 <svelte:head>
@@ -61,6 +61,16 @@
 		border-radius: 999px;
 		background: #ffb36d;
 		box-shadow: 0 0 0 0 rgba(255, 179, 109, 0.45);
+	}
+
+	.overlay-shell[data-state='completed'] .dot {
+		background: #8fd6a0;
+		box-shadow: 0 0 0 0 rgba(143, 214, 160, 0.45);
+	}
+
+	.overlay-shell[data-state='error'] .dot {
+		background: #ef7a7a;
+		box-shadow: 0 0 0 0 rgba(239, 122, 122, 0.45);
 	}
 
 	.pulse {

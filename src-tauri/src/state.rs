@@ -9,7 +9,8 @@ use crate::APP_STATE_EVENT;
 pub enum AppState {
     Ready,
     Listening,
-    Saving,
+    Processing,
+    Completed,
     Error,
 }
 
@@ -18,10 +19,11 @@ impl AppState {
         matches!(
             (self, next),
             (Self::Ready, Self::Listening)
-                | (Self::Listening, Self::Saving)
-                | (Self::Saving, Self::Ready)
+                | (Self::Listening, Self::Processing)
                 | (Self::Listening, Self::Error)
-                | (Self::Saving, Self::Error)
+                | (Self::Processing, Self::Completed)
+                | (Self::Processing, Self::Error)
+                | (Self::Completed, Self::Ready)
                 | (Self::Error, Self::Ready)
         )
     }
@@ -30,7 +32,8 @@ impl AppState {
         match self {
             Self::Ready => None,
             Self::Listening => Some("Listening...".to_string()),
-            Self::Saving => Some("Saving recording...".to_string()),
+            Self::Processing => Some("Transcribing...".to_string()),
+            Self::Completed => Some("Copied to clipboard".to_string()),
             Self::Error => error_message.map(str::to_string),
         }
     }
@@ -122,13 +125,18 @@ mod tests {
     }
 
     #[test]
-    fn listening_can_start_saving() {
-        assert!(AppState::Listening.can_transition_to(AppState::Saving));
+    fn listening_can_transition_to_processing() {
+        assert!(AppState::Listening.can_transition_to(AppState::Processing));
     }
 
     #[test]
-    fn saving_can_return_to_ready() {
-        assert!(AppState::Saving.can_transition_to(AppState::Ready));
+    fn processing_can_transition_to_completed() {
+        assert!(AppState::Processing.can_transition_to(AppState::Completed));
+    }
+
+    #[test]
+    fn completed_can_transition_to_ready() {
+        assert!(AppState::Completed.can_transition_to(AppState::Ready));
     }
 
     #[test]
@@ -137,8 +145,8 @@ mod tests {
     }
 
     #[test]
-    fn saving_can_fail() {
-        assert!(AppState::Saving.can_transition_to(AppState::Error));
+    fn processing_can_fail() {
+        assert!(AppState::Processing.can_transition_to(AppState::Error));
     }
 
     #[test]
@@ -148,23 +156,44 @@ mod tests {
 
     #[test]
     fn invalid_transitions_are_rejected() {
-        assert!(!AppState::Ready.can_transition_to(AppState::Saving));
+        assert!(!AppState::Ready.can_transition_to(AppState::Processing));
         assert!(!AppState::Ready.can_transition_to(AppState::Error));
         assert!(!AppState::Listening.can_transition_to(AppState::Ready));
-        assert!(!AppState::Saving.can_transition_to(AppState::Listening));
+        assert!(!AppState::Processing.can_transition_to(AppState::Listening));
+        assert!(!AppState::Completed.can_transition_to(AppState::Listening));
         assert!(!AppState::Error.can_transition_to(AppState::Listening));
     }
 
     #[test]
-    fn overlay_messages_match_phase_two_states() {
+    fn processing_has_transcribing_message() {
+        assert_eq!(
+            AppState::Processing.default_message(None),
+            Some("Transcribing...".to_string())
+        );
+    }
+
+    #[test]
+    fn completed_state_can_override_default_message() {
+        assert_eq!(
+            AppState::Completed.default_message(Some("Pasted")),
+            Some("Copied to clipboard".to_string())
+        );
+    }
+
+    #[test]
+    fn overlay_messages_match_transcription_states() {
         assert_eq!(AppState::Ready.default_message(None), None);
         assert_eq!(
             AppState::Listening.default_message(None),
             Some("Listening...".to_string())
         );
         assert_eq!(
-            AppState::Saving.default_message(None),
-            Some("Saving recording...".to_string())
+            AppState::Processing.default_message(None),
+            Some("Transcribing...".to_string())
+        );
+        assert_eq!(
+            AppState::Completed.default_message(None),
+            Some("Copied to clipboard".to_string())
         );
         assert_eq!(
             AppState::Error.default_message(Some("No microphone")),
