@@ -33,6 +33,9 @@ impl RecorderSession {
         let device = host
             .default_input_device()
             .ok_or_else(|| "No default microphone available".to_string())?;
+        let device_name = device
+            .name()
+            .unwrap_or_else(|_| "unknown input device".to_string());
 
         let supported_config = device
             .default_input_config()
@@ -45,6 +48,13 @@ impl RecorderSession {
             sample_rate: SampleRate(sample_rate),
             buffer_size: cpal::BufferSize::Default,
         };
+        eprintln!(
+            "[audio] start device={} sample_format={:?} sample_rate={} channels={}",
+            device_name,
+            supported_config.sample_format(),
+            sample_rate,
+            channels
+        );
 
         let samples = Arc::new(Mutex::new(Vec::new()));
         let samples_for_stream = Arc::clone(&samples);
@@ -107,7 +117,25 @@ impl RecorderSession {
             .as_millis();
 
         let path = build_output_path(output_dir, timestamp);
+        let peak = sample_peak_i16(&mono_samples);
+        let rms = sample_rms_i16(&mono_samples);
+        eprintln!(
+            "[audio] stop path={} sample_rate={} duration_ms={} samples={} peak={} rms={}",
+            path.display(),
+            self.sample_rate,
+            (mono_samples.len() as u64 * 1000) / self.sample_rate as u64,
+            mono_samples.len(),
+            peak,
+            rms
+        );
         write_wav_file(&path, self.sample_rate, &mono_samples)?;
+
+        if peak == 0 {
+            return Err(format!(
+                "Recording contains silence. Check your default microphone/input device. Saved file: {}",
+                path.display()
+            ));
+        }
 
         Ok(RecordingResult {
             path,
@@ -220,9 +248,30 @@ pub fn build_output_path(output_dir: &Path, timestamp_ms: u128) -> PathBuf {
     output_dir.join(format!("recording-{timestamp_ms}.wav"))
 }
 
+fn sample_peak_i16(samples: &[i16]) -> i16 {
+    samples.iter().map(|sample| sample.abs()).max().unwrap_or(0)
+}
+
+fn sample_rms_i16(samples: &[i16]) -> i16 {
+    if samples.is_empty() {
+        return 0;
+    }
+
+    let mean_square = samples
+        .iter()
+        .map(|sample| {
+            let sample = *sample as f64;
+            sample * sample
+        })
+        .sum::<f64>()
+        / samples.len() as f64;
+
+    mean_square.sqrt().round() as i16
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{build_output_path, downmix_to_mono_i16};
+    use super::{build_output_path, downmix_to_mono_i16, sample_peak_i16, sample_rms_i16};
 
     #[test]
     fn stereo_i16_samples_are_downmixed_to_mono() {
@@ -244,5 +293,18 @@ mod tests {
         assert_eq!(path.parent().unwrap(), std::path::Path::new("C:/temp"));
         assert_eq!(path.extension().unwrap(), "wav");
         assert!(path.file_name().unwrap().to_string_lossy().starts_with("recording-"));
+    }
+
+    #[test]
+    fn sample_peak_detects_silence() {
+        assert_eq!(sample_peak_i16(&[0, 0, 0]), 0);
+        assert_eq!(sample_peak_i16(&[-4, 2, 3]), 4);
+    }
+
+    #[test]
+    fn sample_rms_detects_silence() {
+        assert_eq!(sample_rms_i16(&[]), 0);
+        assert_eq!(sample_rms_i16(&[0, 0, 0]), 0);
+        assert!(sample_rms_i16(&[1000, -1000]) > 0);
     }
 }
