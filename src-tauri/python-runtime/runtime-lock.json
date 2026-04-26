@@ -1,0 +1,11 @@
+{
+    "runtimeId":  "3.12.10-embed-amd64",
+    "pythonZip":  {
+                      "fileName":  "python-3.12.10-embed-amd64.zip",
+                      "sha256":  "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3"
+                  },
+    "getPip":  {
+                   "fileName":  "get-pip.py",
+                   "sha256":  "feba1c697df45be1b539b40d93c102c9ee9dde1d966303323b830b06f3fbca3c"
+               }
+}

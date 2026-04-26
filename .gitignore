@@ -21,3 +21,7 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Generated Python runtime bundle resources
+/src-tauri/resources/python/*.zip
+/src-tauri/resources/python/get-pip.py

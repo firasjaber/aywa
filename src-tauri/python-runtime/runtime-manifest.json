@@ -1,0 +1,12 @@
+{
+  "pythonVersion": "3.12.10",
+  "runtimeId": "3.12.10-embed-amd64",
+  "pythonZip": {
+    "fileName": "python-3.12.10-embed-amd64.zip",
+    "url": "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip"
+  },
+  "getPip": {
+    "fileName": "get-pip.py",
+    "url": "https://bootstrap.pypa.io/get-pip.py"
+  }
+}
