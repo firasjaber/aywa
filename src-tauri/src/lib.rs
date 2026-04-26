@@ -3,6 +3,7 @@ pub mod clipboard;
 pub mod hotkey;
 pub mod model_manager;
 pub mod overlay;
+pub mod python_runtime;
 pub mod runtime_profile;
 pub mod state;
 pub mod transcribe;
@@ -80,7 +81,10 @@ pub fn app_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
 }
 
 pub fn bootstrap_transcription_runtime<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    transcribe::bootstrap_runtime(&app_data_dir(app)?)
+    let root = app_data_dir(app)?;
+    transcribe::bootstrap_runtime(&root)?;
+    let _python_exe = python_runtime::ensure_python_runtime(app, &root)?;
+    Ok(())
 }
 
 pub fn start_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
