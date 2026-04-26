@@ -30,6 +30,7 @@ export type WorkerCudaStatus = {
 export type WorkerRuntimeBootstrapStatus =
 	| 'idle'
 	| 'checking'
+	| 'installing_python_runtime'
 	| 'upgrading_pip'
 	| 'installing_cuda_torch'
 	| 'installing_worker_requirements'

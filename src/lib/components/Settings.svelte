@@ -28,7 +28,9 @@
 	const runtimeStatus = $derived($modelManager.readyForTranscription ? 'Ready' : 'Not ready');
 	const runtimeBootstrapCopy = $derived(
 		$modelManager.workerRuntimeBootstrap.message ??
-			(isRuntimePreparing
+			(runtimeBootstrapStatus === 'installing_python_runtime'
+				? 'Preparing the bundled Python runtime.'
+				: isRuntimePreparing
 				? 'Preparing the Python transcription runtime in the background.'
 				: hasActiveRuntimeProfile
 					? 'Python transcription runtime is ready.'
