@@ -49,6 +49,7 @@ pub struct WorkerCudaStatus {
 pub enum WorkerRuntimeBootstrapStatus {
     Idle,
     Checking,
+    InstallingPythonRuntime,
     UpgradingPip,
     InstallingCudaTorch,
     InstallingWorkerRequirements,

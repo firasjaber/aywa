@@ -203,8 +203,8 @@ pub fn verify_runtime_layout(app_data_root: &Path) -> Result<PathBuf, String> {
     Ok(python_exe)
 }
 
-fn ensure_worker_python_ready(app_data_root: &Path) -> Result<PathBuf, String> {
-    crate::runtime_profile::service::ensure_worker_python_ready(app_data_root)
+fn ensure_worker_python_ready<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    crate::runtime_profile::service::ensure_worker_python_ready(app)
 }
 
 pub fn prepare_worker_runtime<R, F>(app: &AppHandle<R>, progress: F) -> Result<WorkerCudaStatus, String>
@@ -258,10 +258,21 @@ pub(crate) fn install_runtime_profile_packages(
 }
 
 pub(crate) fn install_worker_requirements(python_exe: &Path, requirements_path: &Path) -> Result<(), String> {
-    let requirements = requirements_path.display().to_string();
+    let requirements = requirements_path
+        .to_str()
+        .ok_or_else(|| "requirements path is not valid UTF-8".to_string())?;
     run_python_command(
         python_exe,
-        &["-m", "pip", "install", "--upgrade", "-r", &requirements],
+        &[
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--no-input",
+            "--upgrade",
+            "--requirement",
+            requirements,
+        ],
         "install worker requirements",
     )
 }
@@ -309,8 +320,7 @@ fn summarize_command_output(output: &std::process::Output) -> String {
 }
 
 pub fn probe_worker_cuda<R: Runtime>(app: &AppHandle<R>) -> Result<WorkerCudaStatus, String> {
-    let root = app_data_dir(app)?;
-    let python_exe = ensure_worker_python_ready(&root)?;
+    let python_exe = ensure_worker_python_ready(app)?;
     probe_worker_cuda_with_python(&python_exe)
 }
 
@@ -583,7 +593,7 @@ pub fn ensure_loaded<R: Runtime>(
     model_path: &Path,
 ) -> Result<(), String> {
     let root = app_data_dir(app)?;
-    let python_exe = ensure_worker_python_ready(&root)?;
+    let python_exe = ensure_worker_python_ready(app)?;
 
     let handles: State<'_, RuntimeHandles> = app.state();
     let mut slot = handles

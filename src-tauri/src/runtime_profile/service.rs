@@ -69,12 +69,13 @@ where
     F: FnMut(WorkerRuntimeBootstrapStatus, Option<String>, Option<WorkerCudaStatus>),
 {
     let root = app_data_dir(app)?;
-    let prepared = prepare_worker_runtime_at_root(&root, progress)?;
+    let prepared = prepare_worker_runtime_for_app(app, &root, progress)?;
     Ok(prepared.worker_cuda_status)
 }
 
-pub fn ensure_worker_python_ready(app_data_root: &Path) -> Result<PathBuf, String> {
-    let prepared = prepare_worker_runtime_at_root(app_data_root, |_, _, _| {})?;
+pub fn ensure_worker_python_ready<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let root = app_data_dir(app)?;
+    let prepared = prepare_worker_runtime_for_app(app, &root, |_, _, _| {})?;
     Ok(prepared.python_exe)
 }
 
@@ -143,8 +144,28 @@ pub fn record_worker_execution_device<R: Runtime>(app: &AppHandle<R>, device: &s
     save_state(&path, &state).map_err(|error| error.to_string())
 }
 
-fn prepare_worker_runtime_at_root<F>(
+fn prepare_worker_runtime_for_app<R, F>(
+    app: &AppHandle<R>,
     app_data_root: &Path,
+    mut progress: F,
+) -> Result<PreparedWorkerRuntime, String>
+where
+    R: Runtime,
+    F: FnMut(WorkerRuntimeBootstrapStatus, Option<String>, Option<WorkerCudaStatus>),
+{
+    progress(
+        WorkerRuntimeBootstrapStatus::InstallingPythonRuntime,
+        Some("Preparing bundled Python runtime".to_string()),
+        None,
+    );
+    transcribe::bootstrap_runtime(app_data_root)?;
+    let python_exe = crate::python_runtime::ensure_python_runtime(app, app_data_root)?;
+    prepare_worker_runtime_with_python_at_root(app_data_root, python_exe, progress)
+}
+
+fn prepare_worker_runtime_with_python_at_root<F>(
+    app_data_root: &Path,
+    python_exe: PathBuf,
     mut progress: F,
 ) -> Result<PreparedWorkerRuntime, String>
 where
@@ -156,8 +177,6 @@ where
         None,
     );
 
-    transcribe::bootstrap_runtime(app_data_root)?;
-    let python_exe = transcribe::verify_runtime_layout(app_data_root)?;
     let manifest = catalog::load_manifest().map_err(|error| error.to_string())?;
     let manifest_version = catalog::manifest_version().map_err(|error| error.to_string())?;
     let state_path = runtime_profile_state_path_at_root(app_data_root);
