@@ -1,2 +1,2 @@
-nemo_toolkit[asr]
-pytest
+nemo_toolkit[asr]==2.7.3
+editdistance==0.8.1

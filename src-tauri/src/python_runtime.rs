@@ -60,12 +60,15 @@ pub fn ensure_python_runtime<R: tauri::Runtime>(
         );
     }
 
-    let fallback = path_python();
-    if is_usable_python(&fallback) {
-        return Ok(fallback);
+    #[cfg(debug_assertions)]
+    {
+        let fallback = path_python();
+        if is_usable_python(&fallback) {
+            return Ok(fallback);
+        }
     }
 
-    Err("No usable Python runtime found. Set OK_PYTHON_EXE or run npm run prepare:python-runtime before building."
+    Err("Bundled Python runtime resources were not found. Run npm run prepare:python-runtime before building."
         .to_string())
 }
 
@@ -98,6 +101,7 @@ fn forced_managed_runtime() -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(debug_assertions)]
 fn path_python() -> PathBuf {
     PathBuf::from("python")
 }
