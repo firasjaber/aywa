@@ -2,6 +2,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    time::Duration,
 };
 
 use tauri::Manager;
@@ -12,6 +13,7 @@ pub const GET_PIP_RESOURCE_NAME: &str = "get-pip.py";
 pub const PYTHON_RUNTIME_MARKER_FILE: &str = "ok-python-runtime.json";
 pub const PYTHON_RUNTIME_MODE_ENV: &str = "OK_PYTHON_RUNTIME";
 pub const PYTHON_RUNTIME_MODE_MANAGED: &str = "managed";
+const PIP_BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct PythonRuntimeMarker {
@@ -30,11 +32,34 @@ pub fn ensure_python_runtime<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     app_data_root: &Path,
 ) -> Result<PathBuf, String> {
+    ensure_python_runtime_with_progress(app, app_data_root, |_| {})
+}
+
+pub fn ensure_python_runtime_with_progress<R, F>(
+    app: &tauri::AppHandle<R>,
+    app_data_root: &Path,
+    mut progress: F,
+) -> Result<PathBuf, String>
+where
+    R: tauri::Runtime,
+    F: FnMut(String),
+{
     let force_managed = forced_managed_runtime();
+    crate::diagnostics::log(format!(
+        "[python-runtime] ensure start app_data_root={} force_managed={}",
+        app_data_root.display(),
+        force_managed
+    ));
+    progress("Checking bundled Python runtime".to_string());
 
     if !force_managed {
         if let Some(override_path) = configured_python_override() {
+            progress("Checking configured Python override".to_string());
             if is_usable_python(&override_path) {
+                crate::diagnostics::log(format!(
+                    "[python-runtime] using OK_PYTHON_EXE override path={}",
+                    override_path.display()
+                ));
                 return Ok(override_path);
             }
 
@@ -44,32 +69,45 @@ pub fn ensure_python_runtime<R: tauri::Runtime>(
 
     let runtime_dir = python_runtime_dir(app_data_root);
     let python_exe = python_executable(app_data_root);
+    progress("Checking existing bundled Python runtime".to_string());
     if marker_matches(&runtime_dir) && is_usable_python(&python_exe) {
+        crate::diagnostics::log(format!(
+            "[python-runtime] using existing managed runtime python_exe={}",
+            python_exe.display()
+        ));
         return Ok(python_exe);
     }
 
+    progress("Locating bundled Python runtime resources".to_string());
     if let Some((zip_path, get_pip_path)) = find_runtime_resources(app)? {
-        install_managed_runtime(&runtime_dir, &python_exe, &zip_path, &get_pip_path)?;
+        crate::diagnostics::log(format!(
+            "[python-runtime] installing managed runtime zip={} get_pip={}",
+            zip_path.display(),
+            get_pip_path.display()
+        ));
+        install_managed_runtime(&runtime_dir, &python_exe, &zip_path, &get_pip_path, &mut progress)?;
+        crate::diagnostics::log(format!(
+            "[python-runtime] installed managed runtime python_exe={}",
+            python_exe.display()
+        ));
         return Ok(python_exe);
     }
 
     if force_managed {
-        return Err(
-            "OK_PYTHON_RUNTIME=managed was requested, but bundled Python resources were not found. Run npm run prepare:python-runtime."
-                .to_string(),
-        );
+        return Err(missing_runtime_resources_message());
     }
 
     #[cfg(debug_assertions)]
     {
         let fallback = path_python();
+        progress("Checking development Python on PATH".to_string());
         if is_usable_python(&fallback) {
+            crate::diagnostics::log("[python-runtime] using debug PATH python fallback");
             return Ok(fallback);
         }
     }
 
-    Err("Bundled Python runtime resources were not found. Run npm run prepare:python-runtime before building."
-        .to_string())
+    Err(missing_runtime_resources_message())
 }
 
 fn install_managed_runtime(
@@ -77,14 +115,28 @@ fn install_managed_runtime(
     python_exe: &Path,
     zip_path: &Path,
     get_pip_path: &Path,
+    progress: &mut impl FnMut(String),
 ) -> Result<(), String> {
     if runtime_dir.exists() {
+        progress("Removing stale bundled Python runtime".to_string());
+        crate::diagnostics::log(format!(
+            "[python-runtime] removing stale runtime_dir={}",
+            runtime_dir.display()
+        ));
         fs::remove_dir_all(runtime_dir).map_err(|error| error.to_string())?;
     }
 
+    progress("Extracting bundled Python runtime".to_string());
+    crate::diagnostics::log("[python-runtime] extracting embedded Python zip");
     extract_zip(zip_path, runtime_dir)?;
+    progress("Enabling packages for bundled Python runtime".to_string());
+    crate::diagnostics::log("[python-runtime] patching embedded Python ._pth");
     patch_embedded_python_pth(runtime_dir)?;
+    progress("Installing pip into bundled Python runtime".to_string());
+    crate::diagnostics::log("[python-runtime] bootstrapping pip");
     bootstrap_pip(python_exe, get_pip_path)?;
+    progress("Finishing bundled Python runtime setup".to_string());
+    crate::diagnostics::log("[python-runtime] writing runtime marker");
     write_marker(runtime_dir)
 }
 
@@ -110,12 +162,11 @@ fn python_resource_dirs<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<
     let resource_dir = app
         .path()
         .resource_dir()
-        .map_err(|error| error.to_string())?
-        .join("python");
+        .map_err(|error| error.to_string())?;
+    let mut dirs = python_resource_dirs_from_resource_dir(&resource_dir);
 
     #[cfg(debug_assertions)]
     {
-        let mut dirs = vec![resource_dir];
         if let Some(manifest_dir) = option_env!("CARGO_MANIFEST_DIR") {
             dirs.push(PathBuf::from(manifest_dir).join("resources").join("python"));
         }
@@ -124,8 +175,15 @@ fn python_resource_dirs<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<
 
     #[cfg(not(debug_assertions))]
     {
-        Ok(vec![resource_dir])
+        Ok(dirs)
     }
+}
+
+fn python_resource_dirs_from_resource_dir(resource_dir: &Path) -> Vec<PathBuf> {
+    vec![
+        resource_dir.join("resources").join("python"),
+        resource_dir.join("python"),
+    ]
 }
 
 fn find_runtime_resources<R: tauri::Runtime>(
@@ -134,12 +192,23 @@ fn find_runtime_resources<R: tauri::Runtime>(
     for resource_dir in python_resource_dirs(app)? {
         let zip_path = resource_dir.join(PYTHON_RUNTIME_ZIP_NAME);
         let get_pip_path = resource_dir.join(GET_PIP_RESOURCE_NAME);
+        crate::diagnostics::log(format!(
+            "[python-runtime] checking resources resource_dir={} zip_exists={} get_pip_exists={}",
+            resource_dir.display(),
+            zip_path.exists(),
+            get_pip_path.exists()
+        ));
         if zip_path.exists() && get_pip_path.exists() {
             return Ok(Some((zip_path, get_pip_path)));
         }
     }
 
     Ok(None)
+}
+
+fn missing_runtime_resources_message() -> String {
+    "This installation is missing the bundled Python runtime files required for transcription. Please reinstall the app or contact support with the debug log shown in Settings."
+        .to_string()
 }
 
 fn marker_path(runtime_dir: &Path) -> PathBuf {
@@ -230,23 +299,13 @@ fn is_usable_python(candidate: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn run_python_command(python_exe: &Path, args: &[&str], description: &str) -> Result<(), String> {
-    let output = Command::new(python_exe)
-        .args(args)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|error| format!("failed to {description}: {error}"))?;
-
-    if output.status.success() {
-        return Ok(());
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    Err(if stderr.is_empty() {
-        format!("failed to {description}")
-    } else {
-        format!("failed to {description}: {stderr}")
-    })
+fn run_python_command_with_timeout(
+    python_exe: &Path,
+    args: &[&str],
+    description: &str,
+    timeout: Duration,
+) -> Result<(), String> {
+    crate::diagnostics::run_logged_command_with_timeout(python_exe, args, description, timeout)
 }
 
 fn bootstrap_pip(python_exe: &Path, get_pip_path: &Path) -> Result<(), String> {
@@ -262,7 +321,7 @@ fn bootstrap_pip(python_exe: &Path, get_pip_path: &Path) -> Result<(), String> {
         return Ok(());
     }
 
-    run_python_command(
+    run_python_command_with_timeout(
         python_exe,
         &[
             get_pip_path
@@ -271,6 +330,7 @@ fn bootstrap_pip(python_exe: &Path, get_pip_path: &Path) -> Result<(), String> {
             "--no-warn-script-location",
         ],
         "bootstrap pip",
+        PIP_BOOTSTRAP_TIMEOUT,
     )
 }
 
@@ -303,5 +363,14 @@ mod tests {
         let patched = enable_site_in_pth("python312.zip\n.\n#import site\n");
 
         assert_eq!(patched, "python312.zip\n.\nimport site\n");
+    }
+
+    #[test]
+    fn resource_dirs_include_tauri_bundle_layout() {
+        let resource_dir = Path::new("C:/Program Files/OK");
+        let dirs = python_resource_dirs_from_resource_dir(resource_dir);
+
+        assert_eq!(dirs[0], resource_dir.join("resources").join("python"));
+        assert_eq!(dirs[1], resource_dir.join("python"));
     }
 }

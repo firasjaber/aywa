@@ -190,12 +190,16 @@ fn main() {
         .manage(RuntimeHandles::default())
         .manage(ModelManagerState::default())
         .setup(|app| {
+            match ok_lib::diagnostics::init_for_app(&app.handle()) {
+                Ok(path) => ok_lib::diagnostics::log(format!(
+                    "[startup] production debug log path={}",
+                    path.display()
+                )),
+                Err(error) => eprintln!("failed to initialize diagnostics log: {error}"),
+            }
+
             ok_lib::configure_windows(&app.handle())?;
             build_tray(&app.handle())?;
-
-            if let Err(error) = ok_lib::bootstrap_transcription_runtime(&app.handle()) {
-                eprintln!("failed to bootstrap transcription runtime: {error}");
-            }
 
             match ok_lib::hotkey::register(app.handle().clone()) {
                 Ok(handle) => {
@@ -203,13 +207,13 @@ fn main() {
                     *runtime_handles.hotkey.lock().expect("hotkey mutex poisoned") = Some(handle);
                 }
                 Err(error) => {
-                    eprintln!("failed to register global hotkey: {error}");
+                    ok_lib::diagnostics::log(format!("failed to register global hotkey: {error}"));
                 }
             }
 
             let _ = app.state::<AppStateManager>().emit_current(&app.handle());
             if let Err(error) = ok_lib::startup_model_manager(&app.handle()) {
-                eprintln!("failed to reconcile model manager state: {error}");
+                ok_lib::diagnostics::log(format!("failed to reconcile model manager state: {error}"));
             }
             Ok(())
         })

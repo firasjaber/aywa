@@ -159,7 +159,14 @@ where
         None,
     );
     transcribe::bootstrap_runtime(app_data_root)?;
-    let python_exe = crate::python_runtime::ensure_python_runtime(app, app_data_root)?;
+    let python_exe =
+        crate::python_runtime::ensure_python_runtime_with_progress(app, app_data_root, |message| {
+            progress(
+                WorkerRuntimeBootstrapStatus::InstallingPythonRuntime,
+                Some(message),
+                None,
+            );
+        })?;
     prepare_worker_runtime_with_python_at_root(app_data_root, python_exe, progress)
 }
 

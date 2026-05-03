@@ -9,6 +9,7 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use crate::{
+    diagnostics,
     model_manager::{
         catalog, download, manifest,
         registry::{self, ModelRegistry},
@@ -43,6 +44,7 @@ pub struct ModelManagerSnapshot {
     pub worker_cuda_status: WorkerCudaStatus,
     pub worker_runtime_bootstrap: WorkerRuntimeBootstrap,
     pub runtime_profile: RuntimeProfileSnapshot,
+    pub diagnostics_log_path: Option<String>,
     pub ready_for_transcription: bool,
     pub models: Vec<ModelRow>,
 }
@@ -95,12 +97,14 @@ impl ModelManagerState {
             &worker_runtime_bootstrap,
         )
         .unwrap_or_else(|_| runtime_profile::service::default_runtime_profile_snapshot());
+        let diagnostics_log_path = diagnostics::log_path_for_app(app).map(|path| path.display().to_string());
         snapshot_from_registry(
             &registry,
             &transient_statuses,
             worker_cuda_status,
             worker_runtime_bootstrap,
             runtime_profile,
+            diagnostics_log_path,
         )
     }
 }
@@ -599,12 +603,17 @@ fn schedule_runtime_bootstrap<R: Runtime>(
         if matches!(
             bootstrap.status,
             WorkerRuntimeBootstrapStatus::Checking
+                | WorkerRuntimeBootstrapStatus::InstallingPythonRuntime
                 | WorkerRuntimeBootstrapStatus::UpgradingPip
                 | WorkerRuntimeBootstrapStatus::InstallingCudaTorch
                 | WorkerRuntimeBootstrapStatus::InstallingWorkerRequirements
                 | WorkerRuntimeBootstrapStatus::FallingBackToCpu
                 | WorkerRuntimeBootstrapStatus::SmokeTesting
         ) {
+            diagnostics::log(format!(
+                "[model_manager] runtime bootstrap already in progress status={:?}",
+                bootstrap.status
+            ));
             return Ok(());
         }
 
@@ -616,10 +625,16 @@ fn schedule_runtime_bootstrap<R: Runtime>(
     let app = app.clone();
 
     thread::spawn(move || {
+        diagnostics::log("[model_manager] runtime bootstrap thread started");
         let state = app.state::<ModelManagerState>();
         let emit_progress = |status: WorkerRuntimeBootstrapStatus,
                              message: Option<String>,
                              worker_cuda_status: Option<WorkerCudaStatus>| {
+            diagnostics::log(format!(
+                "[model_manager] runtime bootstrap progress status={:?} message={}",
+                status,
+                message.as_deref().unwrap_or("")
+            ));
             if let Ok(mut bootstrap) = state.worker_runtime_bootstrap.lock() {
                 bootstrap.status = status;
                 bootstrap.message = message;
@@ -635,16 +650,20 @@ fn schedule_runtime_bootstrap<R: Runtime>(
         };
 
         match transcribe::prepare_worker_runtime(&app, emit_progress) {
-            Ok(worker_cuda_status) => emit_progress(
-                WorkerRuntimeBootstrapStatus::Ready,
-                Some(if worker_cuda_status.cuda_available {
-                    "Python runtime is ready and can use CUDA".to_string()
-                } else {
-                    "Python runtime is ready and will use CPU fallback".to_string()
-                }),
-                Some(worker_cuda_status),
-            ),
+            Ok(worker_cuda_status) => {
+                diagnostics::log("[model_manager] runtime bootstrap succeeded");
+                emit_progress(
+                    WorkerRuntimeBootstrapStatus::Ready,
+                    Some(if worker_cuda_status.cuda_available {
+                        "Python runtime is ready and can use CUDA".to_string()
+                    } else {
+                        "Python runtime is ready and will use CPU fallback".to_string()
+                    }),
+                    Some(worker_cuda_status),
+                );
+            }
             Err(error) => {
+                diagnostics::log(format!("[model_manager] runtime bootstrap failed error={error}"));
                 emit_progress(
                     WorkerRuntimeBootstrapStatus::Error,
                     Some(error.clone()),
@@ -679,6 +698,7 @@ fn snapshot_from_registry(
     worker_cuda_status: WorkerCudaStatus,
     worker_runtime_bootstrap: WorkerRuntimeBootstrap,
     runtime_profile: RuntimeProfileSnapshot,
+    diagnostics_log_path: Option<String>,
 ) -> ModelManagerSnapshot {
     let runtime_preflight = runtime::preflight();
     let models = catalog::all_model_ids()
@@ -719,6 +739,7 @@ fn snapshot_from_registry(
         worker_cuda_status,
         worker_runtime_bootstrap,
         runtime_profile,
+        diagnostics_log_path,
         models,
     }
 }
@@ -782,6 +803,7 @@ mod tests {
                 message: Some("ready".to_string()),
             },
             default_runtime_profile_snapshot(),
+            None,
         );
         let row = snapshot
             .models

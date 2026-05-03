@@ -119,6 +119,9 @@
 			<p class="runtime-status">Runtime: {runtimeStatus}</p>
 			<p class="runtime-status">Runtime setup: {runtimeBootstrapStatus}</p>
 			<p class="hint">{runtimeBootstrapCopy}</p>
+			{#if $modelManager.diagnosticsLogPath}
+				<p class="hint log-path">Debug log: {$modelManager.diagnosticsLogPath}</p>
+			{/if}
 			<p class="runtime-status">Transcription device: {transcriptionDeviceLabel}</p>
 			<p class="hint">{transcriptionDeviceCopy}</p>
 			{#if isRuntimePreparing}
@@ -371,6 +374,12 @@
 	.hint {
 		margin-top: 0.4rem;
 		color: #5b6764;
+	}
+
+	.log-path {
+		overflow-wrap: anywhere;
+		font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+		font-size: 0.9rem;
 	}
 
 	.toolbar,

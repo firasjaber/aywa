@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod clipboard;
+pub mod diagnostics;
 pub mod hotkey;
 pub mod model_manager;
 pub mod overlay;

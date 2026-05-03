@@ -92,6 +92,7 @@ export type ModelManagerSnapshot = {
 	workerCudaStatus: WorkerCudaStatus;
 	workerRuntimeBootstrap: WorkerRuntimeBootstrap;
 	runtimeProfile: RuntimeProfileSnapshot;
+	diagnosticsLogPath: string | null;
 	readyForTranscription: boolean;
 	models: ModelRow[];
 };
@@ -123,6 +124,7 @@ const initialState: ModelManagerSnapshot = {
 		lastError: null,
 		profiles: []
 	},
+	diagnosticsLogPath: null,
 	readyForTranscription: false,
 	models: []
 };
