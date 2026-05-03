@@ -221,11 +221,15 @@ where
 {
     progress(
         WorkerRuntimeBootstrapStatus::UpgradingPip,
-        Some("Preparing Python package installer".to_string()),
+        Some("Checking Python package installer".to_string()),
         None,
     );
     if python_command_succeeds(python_exe, &["-m", "pip", "--version"]) {
-        return upgrade_pip(python_exe);
+        crate::diagnostics::log(format!(
+            "[transcribe] pip is already available python_exe={}",
+            python_exe.display()
+        ));
+        return Ok(());
     }
 
     run_python_command(
@@ -239,7 +243,15 @@ where
 fn upgrade_pip(python_exe: &Path) -> Result<(), String> {
     run_python_command(
         python_exe,
-        &["-m", "pip", "install", "--upgrade", "pip"],
+        &[
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--no-input",
+            "--upgrade",
+            "pip",
+        ],
         "upgrade pip",
     )
 }
@@ -269,10 +281,10 @@ pub(crate) fn install_worker_requirements(python_exe: &Path, requirements_path: 
             "install",
             "--disable-pip-version-check",
             "--no-input",
+            "--no-warn-script-location",
             "--prefer-binary",
             "--only-binary",
             "editdistance",
-            "--upgrade",
             "--requirement",
             requirements,
         ],
@@ -281,20 +293,7 @@ pub(crate) fn install_worker_requirements(python_exe: &Path, requirements_path: 
 }
 
 pub(crate) fn run_python_command(python_exe: &Path, args: &[&str], description: &str) -> Result<(), String> {
-    let output = Command::new(python_exe)
-        .args(args)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|error| format!("failed to {description}: {error}"))?;
-
-    if output.status.success() {
-        return Ok(());
-    }
-
-    Err(format!(
-        "failed to {description}: {}",
-        summarize_command_output(&output)
-    ))
+    crate::diagnostics::run_logged_command(python_exe, args, description)
 }
 
 fn python_command_succeeds(python_exe: &Path, args: &[&str]) -> bool {
@@ -306,20 +305,6 @@ fn python_command_succeeds(python_exe: &Path, args: &[&str]) -> bool {
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
-}
-
-fn summarize_command_output(output: &std::process::Output) -> String {
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().replace('\n', " | ");
-    if !stderr.is_empty() {
-        return summarize_worker_line(&stderr);
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().replace('\n', " | ");
-    if !stdout.is_empty() {
-        return summarize_worker_line(&stdout);
-    }
-
-    "no output".to_string()
 }
 
 pub fn probe_worker_cuda<R: Runtime>(app: &AppHandle<R>) -> Result<WorkerCudaStatus, String> {
