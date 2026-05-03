@@ -30,7 +30,19 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 pub fn verify_sha256(path: &Path, expected: &str) -> anyhow::Result<()> {
-    let actual = sha256_hex(&fs::read(path)?);
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 1024 * 1024];
+
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+
+    let actual = format!("{:x}", hasher.finalize());
     if actual != expected {
         return Err(anyhow!("checksum mismatch: expected {expected}, got {actual}"));
     }
@@ -111,11 +123,19 @@ pub fn promote_verified_model(
     let final_path = install_dir.join(&asset.file_name);
     let temp_final_path = temp_path_for(&final_path)?;
     eprintln!(
-        "[model_manager] promote_verified_model copy start source={} temp_final_path={}",
+        "[model_manager] promote_verified_model link start source={} temp_final_path={}",
         downloaded_file.display(),
         temp_final_path.display()
     );
-    fs::copy(downloaded_file, &temp_final_path)?;
+    if let Err(error) = fs::hard_link(downloaded_file, &temp_final_path) {
+        eprintln!(
+            "[model_manager] promote_verified_model hard_link failed source={} temp_final_path={} error={}",
+            downloaded_file.display(),
+            temp_final_path.display(),
+            error
+        );
+        fs::copy(downloaded_file, &temp_final_path)?;
+    }
 
     if !temp_final_path.exists() {
         return Err(anyhow!("verified model file was not promoted"));
