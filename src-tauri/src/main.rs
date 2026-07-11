@@ -87,6 +87,11 @@ fn list_models(app: AppHandle, state: State<'_, ModelManagerState>) -> ModelMana
 }
 
 #[tauri::command]
+fn open_diagnostics_log(app: AppHandle) -> Result<(), String> {
+    ok_lib::open_diagnostics_log(&app)
+}
+
+#[tauri::command]
 fn select_model(
     app: AppHandle,
     state: State<'_, ModelManagerState>,
@@ -224,6 +229,7 @@ fn main() {
             hide_overlay,
             toggle_overlay,
             list_models,
+            open_diagnostics_log,
             select_model,
             download_model,
             load_model,

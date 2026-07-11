@@ -226,6 +226,10 @@ pub fn list_models<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) ->
     model_manager::service::list_models(app, state)
 }
 
+pub fn open_diagnostics_log<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    diagnostics::open_log_in_file_manager(app)
+}
+
 pub fn select_model<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,

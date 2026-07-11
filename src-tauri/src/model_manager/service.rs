@@ -40,6 +40,7 @@ pub struct ModelRow {
 pub struct ModelManagerSnapshot {
     pub selected_model_id: ModelId,
     pub loaded_model_id: Option<ModelId>,
+    pub operating_system: String,
     pub runtime_preflight: RuntimePreflight,
     pub worker_cuda_status: WorkerCudaStatus,
     pub worker_runtime_bootstrap: WorkerRuntimeBootstrap,
@@ -735,6 +736,7 @@ fn snapshot_from_registry(
         selected_model_id: registry.selected_model_id,
         loaded_model_id: registry.loaded_model_id,
         ready_for_transcription: registry.loaded_model_id.is_some() && runtime_ready,
+        operating_system: diagnostics::operating_system_label(),
         runtime_preflight,
         worker_cuda_status,
         worker_runtime_bootstrap,

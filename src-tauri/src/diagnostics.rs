@@ -52,6 +52,42 @@ pub fn log_path_for_app<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<
     })
 }
 
+pub fn operating_system_label() -> String {
+    match std::env::consts::OS {
+        "windows" => "Windows".to_string(),
+        "macos" => "macOS".to_string(),
+        "linux" => "Linux".to_string(),
+        other => other.to_string(),
+    }
+}
+
+pub fn explorer_select_arg(path: &Path) -> String {
+    format!("/select,{}", path.display())
+}
+
+pub fn open_log_in_file_manager<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<(), String> {
+    let path = log_path_for_app(app)
+        .ok_or_else(|| "The diagnostics log is not available yet.".to_string())?;
+
+    if !path.exists() {
+        return Err("The diagnostics log has not been created yet.".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer.exe")
+            .arg(explorer_select_arg(&path))
+            .spawn()
+            .map_err(|error| format!("Could not open Windows Explorer: {error}"))?;
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    Err("Opening the diagnostics log is currently supported on Windows only.".to_string())
+}
+
 pub fn log(message: impl AsRef<str>) {
     let line = format!("[{}] {}", timestamp_ms(), message.as_ref());
     eprintln!("{line}");
@@ -248,4 +284,27 @@ fn timestamp_ms() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod ui_support_tests {
+    use std::path::Path;
+
+    use super::{explorer_select_arg, operating_system_label};
+
+    #[test]
+    fn operating_system_label_is_human_readable() {
+        let label = operating_system_label();
+        assert!(!label.is_empty());
+        assert_ne!(label, "windows");
+    }
+
+    #[test]
+    fn explorer_select_arg_targets_the_log_file() {
+        let path = Path::new(r"C:\Users\Test User\AppData\Local\ok\logs\ok-debug.log");
+        assert_eq!(
+            explorer_select_arg(path),
+            r"/select,C:\Users\Test User\AppData\Local\ok\logs\ok-debug.log"
+        );
+    }
 }
