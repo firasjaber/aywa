@@ -1,8 +1,8 @@
 :root {
-	font-family: 'Segoe UI Variable Text', 'Aptos', 'Trebuchet MS', sans-serif;
-	color: #131718;
-	background: #f3efe7;
-	color-scheme: light;
+	font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+	color: #f4f4f0;
+	background: #111212;
+	color-scheme: dark;
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;
@@ -13,6 +13,7 @@ html,
 body {
 	margin: 0;
 	min-height: 100%;
+	background: #111212;
 }
 
 body {

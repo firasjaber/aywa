@@ -1,85 +1,127 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import {
-		applyRuntimeProfileNow,
-		clearModelCache,
 		downloadModel,
 		loadModel,
 		modelManager,
-		redetectRuntimeProfile,
-		resetRuntimeProfileToAuto,
-		selectModel,
-		selectRuntimeProfile,
-		setRuntimeSelectionMode,
-		testRuntimeProfile,
-		unloadModel
+		openDiagnosticsLog,
+		type ModelId,
+		type ModelRow
 	} from '$lib/stores/modelManager';
+	import {
+		executionDeviceLabel,
+		modelLabel,
+		selectAppStatus,
+		valueOrFallback,
+		type SettingsTab
+	} from './settingsView';
 
-	const onAction = async (action: () => Promise<unknown>) => {
-		await action();
+	let activeTab = $state<SettingsTab>('app');
+	let activatingModelId = $state<ModelId | null>(null);
+	let actionError = $state<string | null>(null);
+	let downloadProgress = $state<Partial<Record<ModelId, number>>>({});
+
+	const appStatus = $derived(selectAppStatus($modelManager, activatingModelId));
+
+	onMount(() => {
+		const timer = window.setInterval(() => {
+			const next = { ...downloadProgress };
+			let changed = false;
+
+			for (const model of $modelManager.models) {
+				if (model.status === 'Downloading') {
+					const current = next[model.modelId] ?? 0;
+					const progress = Math.min(90, current + Math.max(1, Math.ceil((90 - current) / 12)));
+					if (progress !== current) {
+						next[model.modelId] = progress;
+						changed = true;
+					}
+				} else if (model.status === 'Downloaded' && next[model.modelId] !== undefined) {
+					if (next[model.modelId] !== 100) {
+						next[model.modelId] = 100;
+						changed = true;
+					} else {
+						delete next[model.modelId];
+						changed = true;
+					}
+				} else if (model.status === 'Error' && next[model.modelId] !== undefined) {
+					delete next[model.modelId];
+					changed = true;
+				}
+			}
+
+			if (changed) downloadProgress = next;
+		}, 700);
+
+		return () => window.clearInterval(timer);
+	});
+
+	const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+	const beginDownload = async (modelId: ModelId) => {
+		actionError = null;
+		downloadProgress = { ...downloadProgress, [modelId]: 0 };
+		try {
+			await downloadModel(modelId);
+		} catch (error) {
+			const next = { ...downloadProgress };
+			delete next[modelId];
+			downloadProgress = next;
+			actionError = errorText(error);
+		}
 	};
 
-	const runtimeProfile = $derived($modelManager.runtimeProfile);
-	const runtimeBootstrapStatus = $derived($modelManager.workerRuntimeBootstrap.status);
-	const isRuntimePreparing = $derived(
-		!['idle', 'ready', 'error'].includes(runtimeBootstrapStatus)
-	);
-	const hasActiveRuntimeProfile = $derived(!!runtimeProfile.activeProfileId);
-	const canLoadModels = $derived(runtimeBootstrapStatus === 'ready' && hasActiveRuntimeProfile);
-	const runtimeStatus = $derived($modelManager.readyForTranscription ? 'Ready' : 'Not ready');
-	const runtimeBootstrapCopy = $derived(
-		$modelManager.workerRuntimeBootstrap.message ??
-			(runtimeBootstrapStatus === 'installing_python_runtime'
-				? 'Preparing the bundled Python runtime.'
-				: isRuntimePreparing
-				? 'Preparing the Python transcription runtime in the background.'
-				: hasActiveRuntimeProfile
-					? 'Python transcription runtime is ready.'
-					: 'No active runtime profile is available yet.')
-	);
-	const actualExecutionDeviceLabel = $derived(
-		runtimeProfile.actualExecutionDevice === 'gpu'
-			? 'GPU'
-			: runtimeProfile.actualExecutionDevice === 'cpu_fallback'
-				? 'CPU fallback'
-				: runtimeProfile.lastTestResult?.device === 'gpu'
-					? 'GPU'
-					: runtimeProfile.lastTestResult?.device === 'cpu_fallback'
-						? 'CPU fallback'
-						: 'Not tested'
-	);
-	const transcriptionDeviceLabel = $derived(
-		isRuntimePreparing
-			? 'Preparing'
-			: actualExecutionDeviceLabel === 'GPU'
-				? 'NVIDIA GPU'
-				: actualExecutionDeviceLabel === 'CPU fallback'
-					? 'CPU fallback'
-					: 'Not tested'
-	);
-	const transcriptionDeviceCopy = $derived(
-		isRuntimePreparing
-			? 'The app is still checking and preparing the Python transcription runtime.'
-			: actualExecutionDeviceLabel === 'GPU'
-				? 'The current runtime profile and worker startup are using the GPU.'
-				: actualExecutionDeviceLabel === 'CPU fallback'
-					? 'The active runtime is currently falling back to CPU execution.'
-					: 'The runtime has not completed a successful smoke test yet.'
-	);
-
-	const formatTimestamp = (value: number | null | undefined) => {
-		if (!value) {
-			return 'Not tested';
+	const activate = async (modelId: ModelId) => {
+		actionError = null;
+		activatingModelId = modelId;
+		try {
+			await loadModel(modelId);
+		} catch (error) {
+			actionError = errorText(error);
+		} finally {
+			activatingModelId = null;
 		}
-
-		return new Date(value).toLocaleString();
 	};
 
-	const profileLabel = (profileId: string | null) => {
-		if (!profileId) {
-			return 'None';
+	const openLog = async () => {
+		actionError = null;
+		try {
+			await openDiagnosticsLog();
+		} catch (error) {
+			actionError = errorText(error);
+		}
+	};
+
+	const modelStateCopy = (model: ModelRow) => {
+		if (model.errorMessage || model.status === 'Error') return 'Needs attention';
+		if (activatingModelId === model.modelId || model.status === 'Loading') return 'Preparing…';
+		if (model.status === 'Loaded') return `Active · Using ${executionDeviceLabel($modelManager)}`;
+		if (downloadProgress[model.modelId] !== undefined) {
+			return model.status === 'Downloaded'
+				? 'Download complete · 100%'
+				: `Downloading · ${downloadProgress[model.modelId]}%`;
+		}
+		if (model.status === 'Downloaded') return 'Ready to activate';
+		if (model.status === 'Downloading') return 'Downloading · 0%';
+		return 'Not installed';
+	};
+
+	const runtimeCheckCopy = $derived.by(() => {
+		const result = $modelManager.runtimeProfile.lastTestResult;
+		if (result?.success) return 'Last check passed';
+		if (result) {
+			return valueOrFallback(result.error, 'Last check failed');
 		}
 
-		return runtimeProfile.profiles.find((profile) => profile.profileId === profileId)?.label ?? profileId;
+		return valueOrFallback($modelManager.workerRuntimeBootstrap.message);
+	});
+
+	const statusIcon = (tone: typeof appStatus.tone) => {
+		if (tone === 'positive') return '✓';
+		if (tone === 'warning') return '!';
+		if (tone === 'error') return '×';
+		if (tone === 'progress') return '…';
+		return 'O';
 	};
 </script>
 
@@ -87,427 +129,722 @@
 	<title>OK Settings</title>
 </svelte:head>
 
-<section class="settings-shell">
-	<div class="settings-card">
-		<p class="eyebrow">OK speech</p>
-		<h1>Models</h1>
-		<p class="copy">
-			Download, verify, and load one supported Parakeet model at a time.
-		</p>
-
-		{#if isRuntimePreparing}
-			<p class="warning">
-				Preparing transcription runtime in the background.
-				{runtimeBootstrapCopy}
-			</p>
-		{:else if runtimeBootstrapStatus === 'error'}
-			<p class="error">
-				{$modelManager.workerRuntimeBootstrap.message ?? 'Transcription runtime setup failed.'}
-			</p>
-		{:else if actualExecutionDeviceLabel === 'CPU fallback'}
-			<p class="warning">
-				Transcription is using CPU fallback.
-				{runtimeProfile.lastError ?? $modelManager.workerCudaStatus.reason ?? 'CUDA is not available to the worker runtime.'}
-			</p>
-		{/if}
-
-		<div class="meta">
-			<p class="status">
-				Ready for transcription:
-				{$modelManager.readyForTranscription ? 'Yes' : 'No'}
-			</p>
-			<p class="runtime-status">Runtime: {runtimeStatus}</p>
-			<p class="runtime-status">Runtime setup: {runtimeBootstrapStatus}</p>
-			<p class="hint">{runtimeBootstrapCopy}</p>
-			{#if $modelManager.diagnosticsLogPath}
-				<p class="hint log-path">Debug log: {$modelManager.diagnosticsLogPath}</p>
-			{/if}
-			<p class="runtime-status">Transcription device: {transcriptionDeviceLabel}</p>
-			<p class="hint">{transcriptionDeviceCopy}</p>
-			{#if isRuntimePreparing}
-				<p class="hint">You can keep using the settings UI while this finishes.</p>
-			{/if}
-			{#if $modelManager.workerCudaStatus.gpuName}
-				<p class="hint">Worker GPU: {$modelManager.workerCudaStatus.gpuName}</p>
-			{/if}
-			{#if $modelManager.workerCudaStatus.torchVersion}
-				<p class="hint">
-					Torch: {$modelManager.workerCudaStatus.torchVersion}
-					{#if $modelManager.workerCudaStatus.cudaVersion}
-						(CUDA {$modelManager.workerCudaStatus.cudaVersion})
-					{/if}
-				</p>
-			{/if}
-			{#if $modelManager.runtimePreflight.gpuName}
-				<p class="hint">System GPU: {$modelManager.runtimePreflight.gpuName}</p>
-			{/if}
-			<div class="toolbar">
-				<button class="secondary" onclick={() => onAction(() => clearModelCache())}>
-					Clear Cache
-				</button>
-			</div>
-		</div>
-
-		<section class="runtime-panel">
-			<div class="runtime-panel-copy">
-				<p class="eyebrow runtime-eyebrow">Advanced runtime</p>
-				<h2>Runtime profiles</h2>
-				<p class="hint">
-					Switch between automatic resolution and a specific runtime profile without leaving Settings.
-				</p>
-			</div>
-
-			<div class="runtime-grid">
-				<p class="runtime-status">Selection mode: {runtimeProfile.selectionMode}</p>
-				<p class="runtime-status">Resolved auto profile: {profileLabel(runtimeProfile.resolvedAutoProfileId)}</p>
-				<p class="runtime-status">Active profile: {profileLabel(runtimeProfile.activeProfileId)}</p>
-				<p class="runtime-status">Last successful: {profileLabel(runtimeProfile.lastSuccessfulProfileId)}</p>
-				<p class="runtime-status">Execution device: {actualExecutionDeviceLabel}</p>
-				<p class="runtime-status">Last smoke test: {formatTimestamp(runtimeProfile.lastTestResult?.testedAtEpochMs)}</p>
-			</div>
-
-			{#if runtimeProfile.lastTestResult}
-				<p class:warning={!runtimeProfile.lastTestResult.success} class:status={runtimeProfile.lastTestResult.success}>
-					Smoke test {runtimeProfile.lastTestResult.success ? 'passed' : 'failed'} for
-					{profileLabel(runtimeProfile.lastTestResult.profileId)} on {formatTimestamp(runtimeProfile.lastTestResult.testedAtEpochMs)}.
-					{#if runtimeProfile.lastTestResult.error}
-						{runtimeProfile.lastTestResult.error}
-					{/if}
-				</p>
-			{/if}
-
-			{#if runtimeProfile.lastError}
-				<p class="error">{runtimeProfile.lastError}</p>
-			{/if}
-
-			<div class="pill-row">
+<main class="settings-shell">
+	<section class="settings-window" aria-label="OK settings">
+		<header class="app-header">
+			<div class="brand"><span aria-hidden="true">O</span><strong>OK</strong></div>
+			<div class="tabs" aria-label="Settings sections" role="tablist">
 				<button
-					class:secondary={runtimeProfile.selectionMode !== 'auto'}
-					disabled={isRuntimePreparing}
-					onclick={() => onAction(() => setRuntimeSelectionMode('auto'))}
+					type="button"
+					class:active={activeTab === 'app'}
+					role="tab"
+					aria-selected={activeTab === 'app'}
+					aria-controls="app-panel"
+					onclick={() => (activeTab = 'app')}>App</button
 				>
-					Auto
-				</button>
 				<button
-					class:secondary={runtimeProfile.selectionMode !== 'manual'}
-					disabled={isRuntimePreparing}
-					onclick={() => onAction(() => setRuntimeSelectionMode('manual'))}
+					type="button"
+					class:active={activeTab === 'debug'}
+					role="tab"
+					aria-selected={activeTab === 'debug'}
+					aria-controls="debug-panel"
+					onclick={() => (activeTab = 'debug')}>Debug</button
 				>
-					Manual
-				</button>
 			</div>
+			<div class="header-spacer" aria-hidden="true"></div>
+		</header>
 
-			<div class="runtime-controls">
-				<label class="picker-label" for="runtime-profile-picker">Profile</label>
-				<select
-					id="runtime-profile-picker"
-					disabled={runtimeProfile.selectionMode !== 'manual' || isRuntimePreparing}
-					value={runtimeProfile.selectedProfileId ?? ''}
-					onchange={(event) =>
-						onAction(() => selectRuntimeProfile((event.currentTarget as HTMLSelectElement).value))}
+		{#if activeTab === 'app'}
+			<div class="content" id="app-panel" role="tabpanel">
+				<section class="status-card {appStatus.tone}" aria-live="polite">
+					<div class="status-heading">
+						<div class="status-copy">
+							<span class="status-icon" aria-hidden="true">{statusIcon(appStatus.tone)}</span>
+							<div>
+								<h1>{appStatus.title}</h1>
+								<p>{appStatus.detail}</p>
+								{#if appStatus.tone === 'warning'}
+									<a href="#cuda-setup" onclick={(event) => event.preventDefault()}
+										>Read the CUDA setup guide →</a
+									>
+								{:else if appStatus.tone === 'error'}
+									<button class="text-action" type="button" onclick={() => (activeTab = 'debug')}
+										>View details in Debug →</button
+									>
+								{/if}
+							</div>
+						</div>
+						{#if appStatus.badge}<span class="status-badge">{appStatus.badge}</span>{/if}
+					</div>
+
+					{#if appStatus.showHotkey}
+						<div class="hotkey">
+							<span><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd></span>
+							<span>Hold, speak, then release.</span>
+						</div>
+					{/if}
+				</section>
+
+				<section class="models-section" aria-labelledby="models-heading">
+					<div class="section-heading">
+						<h2 id="models-heading">Models</h2>
+						<span>Choose a model for dictation</span>
+					</div>
+					<div class="models-list">
+						{#each $modelManager.models as model (model.modelId)}
+							<article class="model-row">
+								<span
+									class:active-model={model.status === 'Loaded'}
+									class="model-icon"
+									aria-hidden="true"
+									>{model.status === 'Loaded' ? '✓' : model.label.charAt(0)}</span
+								>
+								<div class="model-copy">
+									<h3>{model.label}</h3>
+									<p class:attention={model.errorMessage || model.status === 'Error'}>
+										{modelStateCopy(model)}
+									</p>
+									{#if model.status === 'Downloading' || downloadProgress[model.modelId] !== undefined}
+										<progress
+											max="100"
+											value={downloadProgress[model.modelId] ?? 0}
+											aria-label={`${model.status === 'Downloaded' ? 'Downloaded' : 'Downloading'} ${model.label}`}
+										></progress>
+									{/if}
+								</div>
+
+								{#if activatingModelId === model.modelId || model.status === 'Loading'}
+									<span class="model-state">Preparing…</span>
+								{:else if model.status === 'NotDownloaded' || model.status === 'Error'}
+									<button class="model-action" type="button" onclick={() => beginDownload(model.modelId)}
+										>Download</button
+									>
+								{:else if
+									model.status === 'Downloading' || downloadProgress[model.modelId] !== undefined}
+									<span class="model-progress" aria-hidden="true"
+										>{downloadProgress[model.modelId] ?? 0}%</span
+									>
+								{:else if model.status === 'Downloaded'}
+									<button
+										class="model-action"
+										type="button"
+										disabled={activatingModelId !== null}
+										onclick={() => activate(model.modelId)}>Activate</button
+									>
+								{:else if model.status === 'Loaded'}
+									<span class="active-badge">Active</span>
+								{/if}
+							</article>
+						{:else}
+							<p class="empty-models">No models are available.</p>
+						{/each}
+					</div>
+				</section>
+
+				{#if actionError}
+					<p class="app-action-error" role="status">
+						That action could not be completed. <button type="button" onclick={() => (activeTab = 'debug')}
+							>View details in Debug.</button
+						>
+					</p>
+				{/if}
+
+				<a class="help-link" href="#setup" onclick={(event) => event.preventDefault()}
+					>Need help setting up OK?</a
 				>
-					<option value="" disabled>Select a profile</option>
-					{#each runtimeProfile.profiles as profile}
-						<option value={profile.profileId}>
-							{profile.label} ({profile.stability})
-						</option>
-					{/each}
-				</select>
+			</div>
+		{:else}
+			<div class="content debug-content" id="debug-panel" role="tabpanel">
+				<div class="debug-heading">
+					<h1>Diagnostics</h1>
+					<p>Read-only details for troubleshooting.</p>
+				</div>
 
-				<div class="actions runtime-actions">
-					<button
-						disabled={isRuntimePreparing || runtimeProfile.selectionMode !== 'manual'}
-						onclick={() => onAction(() => applyRuntimeProfileNow())}
+				<dl class="diagnostics-list">
+					<div>
+						<dt>System</dt>
+						<dd>
+							{valueOrFallback($modelManager.operatingSystem)} ·
+							{valueOrFallback($modelManager.runtimePreflight.gpuName, 'GPU not detected')} · Driver
+							{valueOrFallback($modelManager.runtimePreflight.driverVersion)}
+						</dd>
+					</div>
+					<div>
+						<dt>Acceleration</dt>
+						<dd>
+							<span class:diagnostic-positive={$modelManager.workerCudaStatus.cudaAvailable}
+								>{$modelManager.workerCudaStatus.cudaAvailable
+									? 'CUDA available'
+									: valueOrFallback(
+											$modelManager.workerCudaStatus.reason,
+											'CUDA not available'
+										)}</span
+							>
+							· CUDA {valueOrFallback($modelManager.workerCudaStatus.cudaVersion)} · PyTorch
+							{valueOrFallback($modelManager.workerCudaStatus.torchVersion)} ·
+							{executionDeviceLabel($modelManager)}
+						</dd>
+					</div>
+					<div>
+						<dt>Runtime</dt>
+						<dd>
+							<span class:diagnostic-positive={$modelManager.readyForTranscription}
+								>{$modelManager.readyForTranscription ? 'Ready' : 'Not ready'}</span
+							>
+							· {$modelManager.workerRuntimeBootstrap.status} ·
+							{runtimeCheckCopy}
+						</dd>
+					</div>
+					<div>
+						<dt>Model</dt>
+						<dd>
+							Selected: {modelLabel($modelManager, $modelManager.selectedModelId)}
+							({$modelManager.selectedModelId}) · Active:
+							{modelLabel($modelManager, $modelManager.loadedModelId)}
+							{#if $modelManager.loadedModelId}({$modelManager.loadedModelId}){/if}
+							{#each $modelManager.models.filter((model) => model.errorMessage) as model}
+								<br />{model.label}: {model.errorMessage}
+							{/each}
+						</dd>
+					</div>
+				</dl>
+
+				{#if actionError}<p class="debug-error" role="alert">{actionError}</p>{/if}
+
+				<div class="debug-actions">
+					<button class="secondary-action" type="button" onclick={openLog}>Open log</button>
+					<button class="primary-action" type="button" disabled title="Coming later"
+						>Copy issue report</button
 					>
-						Apply now
-					</button>
-					<button disabled={isRuntimePreparing} onclick={() => onAction(() => testRuntimeProfile())}>
-						Test profile
-					</button>
-					<button disabled={isRuntimePreparing} onclick={() => onAction(() => redetectRuntimeProfile())}>
-						Re-detect
-					</button>
-					<button disabled={isRuntimePreparing} class="secondary" onclick={() => onAction(() => resetRuntimeProfileToAuto())}>
-						Reset to auto
-					</button>
 				</div>
 			</div>
-		</section>
-
-		<div class="rows">
-			{#each $modelManager.models as model}
-				<article class="row">
-					<div class="row-copy">
-						<h2>{model.label}</h2>
-						<p class="status">Status: {model.status}</p>
-						{#if model.errorMessage}
-							<p class="error">{model.errorMessage}</p>
-						{/if}
-					</div>
-
-					<div class="actions">
-						<button onclick={() => onAction(() => selectModel(model.modelId))} disabled={model.selected}>
-							{model.selected ? 'Selected' : 'Select'}
-						</button>
-
-						{#if model.status === 'NotDownloaded' || model.status === 'Error'}
-							<button onclick={() => onAction(() => downloadModel(model.modelId))}>
-								Download
-							</button>
-						{:else if model.status === 'Downloading'}
-							<button disabled>Downloading...</button>
-						{:else if model.status === 'Downloaded'}
-							{#if canLoadModels}
-								<button onclick={() => onAction(() => loadModel(model.modelId))}>Load</button>
-							{:else if runtimeBootstrapStatus === 'error'}
-								<button disabled>Runtime error</button>
-							{:else if !hasActiveRuntimeProfile}
-								<button disabled>No active profile</button>
-							{:else}
-								<button disabled>Preparing runtime...</button>
-							{/if}
-						{:else if model.status === 'Loaded'}
-							<button onclick={() => onAction(() => unloadModel())}>Unload</button>
-						{:else}
-							<button disabled>{model.status}</button>
-						{/if}
-					</div>
-				</article>
-			{/each}
-		</div>
-	</div>
-</section>
+		{/if}
+	</section>
+</main>
 
 <style>
-	:global(html),
-	:global(body) {
-		min-height: 100%;
-	}
-
-	:global(body) {
-		background:
-			radial-gradient(circle at top left, rgba(255, 173, 96, 0.26), transparent 34%),
-			linear-gradient(160deg, #f5eee4 0%, #efe6d8 48%, #e8ddd2 100%);
+	:global(*) {
+		box-sizing: border-box;
 	}
 
 	.settings-shell {
 		min-height: 100vh;
+		background: #111212;
+		color: #f4f4f0;
+		font-size: 14px;
+	}
+
+	.settings-window {
+		width: 100%;
+		min-height: 100vh;
+		background: #202120;
+	}
+
+	.app-header {
+		height: 3.25rem;
 		display: grid;
-		place-items: center;
-		padding: 2rem;
+		grid-template-columns: 1fr auto 1fr;
+		align-items: center;
+		padding: 0 1rem;
+		border-bottom: 1px solid #484a48;
 	}
 
-	.settings-card {
-		width: min(100%, 44rem);
-		padding: 2.25rem;
-		border: 1px solid rgba(38, 46, 45, 0.08);
-		border-radius: 1.75rem;
-		background: rgba(255, 252, 247, 0.88);
-		box-shadow: 0 24px 60px rgba(37, 31, 21, 0.14);
-		backdrop-filter: blur(18px);
-	}
-
-	.eyebrow {
-		margin: 0 0 0.75rem;
-		font-size: 0.75rem;
-		font-weight: 700;
-		letter-spacing: 0.18em;
-		text-transform: uppercase;
-		color: #8a5d21;
-	}
-
-	.runtime-eyebrow {
-		margin-bottom: 0.4rem;
-	}
-
-	h1,
-	h2 {
-		margin: 0;
-	}
-
-	h1 {
-		font-size: clamp(2.2rem, 5vw, 3.5rem);
-		line-height: 0.96;
-		letter-spacing: -0.04em;
-	}
-
-	h2 {
-		font-size: 1.35rem;
-	}
-
-	.copy,
-	.hint,
-	.status,
-	.runtime-status,
-	.picker-label {
-		margin: 0;
-		font-size: 1rem;
-		line-height: 1.6;
-	}
-
-	.copy {
-		margin-top: 1rem;
-		max-width: 28rem;
-		color: #44504c;
-	}
-
-	.meta,
-	.runtime-grid,
-	.runtime-controls {
-		margin-top: 1rem;
-		display: grid;
-		gap: 0.75rem;
-	}
-
-	.status {
-		margin-top: 1rem;
-		padding: 0.85rem 1rem;
-		border-radius: 1rem;
-		background: rgba(46, 73, 71, 0.08);
-		color: #234141;
-	}
-
-	.runtime-status {
-		color: #44504c;
-	}
-
-	.hint {
-		margin-top: 0.4rem;
-		color: #5b6764;
-	}
-
-	.log-path {
-		overflow-wrap: anywhere;
-		font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
-		font-size: 0.9rem;
-	}
-
-	.toolbar,
-	.pill-row {
+	.brand {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 14px;
 	}
 
-	.runtime-panel {
-		margin-top: 1.5rem;
-		padding: 1.2rem;
-		border: 1px solid rgba(35, 65, 65, 0.12);
-		border-radius: 1.2rem;
-		background: rgba(255, 255, 255, 0.52);
-	}
-
-	.runtime-panel-copy {
+	.brand span {
 		display: grid;
-		gap: 0.2rem;
+		width: 1.25rem;
+		height: 1.25rem;
+		place-items: center;
+		border-radius: 0.3rem;
+		background: #e9e9e2;
+		color: #171817;
+		font-size: 11px;
+		font-weight: 800;
 	}
 
-	.warning,
-	.error {
-		margin: 1rem 0 0;
-		padding: 0.85rem 1rem;
-		border-radius: 1rem;
+	.tabs {
+		display: flex;
+		gap: 0.25rem;
+		padding: 0.25rem;
+		border-radius: 0.5rem;
+		background: #151615;
 	}
 
-	.warning {
-		background: rgba(150, 81, 16, 0.1);
-		color: #7a4a16;
-	}
-
-	.error {
-		background: rgba(147, 39, 39, 0.1);
-		color: #8a2626;
-	}
-
-	.rows {
-		margin-top: 1.5rem;
-		display: grid;
-		gap: 1rem;
-	}
-
-	.row {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 1rem;
-		align-items: start;
-		padding: 1rem;
-		border: 1px solid rgba(38, 46, 45, 0.08);
-		border-radius: 1.2rem;
-		background: rgba(255, 255, 255, 0.55);
-	}
-
-	.row-copy h2 {
-		font-size: 1.1rem;
-	}
-
-	.row-copy .status,
-	.row-copy .error {
-		margin-top: 0.75rem;
-	}
-
-	.actions {
-		display: grid;
-		gap: 0.75rem;
-	}
-
-	.runtime-actions {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
-	button,
-	select {
-		min-width: 7rem;
-		padding: 0.8rem 1rem;
+	.tabs button {
 		border: 0;
-		border-radius: 999px;
+		border-radius: 0.35rem;
+		padding: 0.4rem 0.8rem;
+		background: transparent;
+		color: #c2c4c0;
 		font: inherit;
-	}
-
-	button {
-		background: #234141;
-		color: #fffaf3;
+		font-size: 12px;
+		font-weight: 650;
 		cursor: pointer;
 	}
 
-	select {
+	.tabs button.active {
+		background: #3d3f3d;
+		color: #fff;
+	}
+
+	.content {
+		max-height: calc(100vh - 3.25rem);
+		min-height: calc(100vh - 3.25rem);
+		overflow-y: auto;
+		padding: 1.25rem;
+	}
+
+	.status-card,
+	.models-list,
+	.diagnostics-list {
+		border: 1px solid #50534f;
+		border-radius: 0.75rem;
+	}
+
+	.status-card {
+		padding: 1rem;
+	}
+
+	.status-card.positive {
+		border-color: #727772;
+		background: #292b29;
+	}
+
+	.status-card.positive .status-icon {
+		background: #c7f164;
+		color: #162000;
+	}
+
+	.status-card.warning {
+		border-color: #947a35;
+		background: #372d13;
+		color: #fff2c9;
+	}
+
+	.status-card.warning .status-icon {
+		background: #ffe28c;
+		color: #3a2a00;
+	}
+
+	.status-card.progress {
+		border-color: #5c7180;
+		background: #202c33;
+	}
+
+	.status-card.progress .status-icon {
+		background: #9ccbe5;
+		color: #10222c;
+	}
+
+	.status-card.error {
+		border-color: #8a4d4d;
+		background: #351f1f;
+		color: #ffd9d9;
+	}
+
+	.status-card.error .status-icon {
+		background: #ffaaaa;
+		color: #351010;
+	}
+
+	.status-card.neutral {
+		border-color: #5d605d;
+		background: #292b29;
+	}
+
+	.status-card.neutral .status-icon {
+		background: #e9e9e2;
+		color: #171817;
+	}
+
+	.status-heading,
+	.status-copy {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+	}
+
+	.status-heading {
+		justify-content: space-between;
+	}
+
+	.status-icon {
+		display: grid;
+		width: 1.75rem;
+		height: 1.75rem;
+		flex: 0 0 auto;
+		place-items: center;
+		margin-top: 0.1rem;
+		border-radius: 50%;
+		background: #9aa09a;
+		color: #141514;
+		font-weight: 800;
+	}
+
+	h1,
+	h2,
+	h3,
+	p,
+	dl,
+	dd {
+		margin: 0;
+	}
+
+	.status-card h1 {
+		font-size: 17px;
+		line-height: 1.3;
+	}
+
+	.status-card p {
+		margin-top: 0.25rem;
+		color: #d4d6d1;
+		font-size: 13px;
+		line-height: 1.45;
+	}
+
+	.status-card.warning p {
+		color: #e8d79c;
+	}
+
+	.status-card.error p {
+		color: #efc1c1;
+	}
+
+	.status-card a,
+	.text-action {
+		display: inline-block;
+		margin-top: 0.65rem;
+		border: 0;
+		padding: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		font-size: 12px;
+		font-weight: 700;
+		text-decoration: underline;
+		text-underline-offset: 0.22rem;
+		cursor: pointer;
+	}
+
+	.status-badge,
+	.active-badge {
+		flex: 0 0 auto;
+		border-radius: 0.35rem;
+		font-size: 11px;
+		font-weight: 700;
+	}
+
+	.status-badge {
+		border: 1px solid #687064;
+		background: #1c2019;
+		padding: 0.25rem 0.5rem;
+		color: #d4ee9d;
+	}
+
+	.hotkey {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-top: 1rem;
+		border-radius: 0.5rem;
+		padding: 0.65rem 0.75rem;
+		background: #171817;
+		color: #bbbdb9;
+		font-size: 12px;
+	}
+
+	kbd {
+		border: 1px solid #686b66;
+		border-radius: 0.25rem;
+		padding: 0.12rem 0.35rem;
+		background: #303230;
+		color: #e3e4df;
+		font: inherit;
+		font-weight: 700;
+	}
+
+	.models-section {
+		margin-top: 1.1rem;
+	}
+
+	.section-heading {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.section-heading h2 {
+		font-size: 14px;
+	}
+
+	.section-heading span {
+		color: #bfc1bc;
+		font-size: 12px;
+	}
+
+	.models-list {
+		overflow: hidden;
+		background: #1b1c1b;
+	}
+
+	.model-row {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		min-height: 3.8rem;
+		padding: 0.7rem 0.75rem;
+	}
+
+	.model-row + .model-row {
+		border-top: 1px solid #444643;
+	}
+
+	.model-icon {
+		display: grid;
+		width: 2rem;
+		height: 2rem;
+		flex: 0 0 auto;
+		place-items: center;
+		border-radius: 0.5rem;
+		background: #323431;
+		color: #dedfd9;
+		font-size: 12px;
+		font-weight: 800;
+	}
+
+	.model-icon.active-model {
+		background: #48553a;
+		color: #defb9b;
+	}
+
+	.model-copy {
+		min-width: 0;
+		flex: 1;
+	}
+
+	.model-copy h3 {
+		overflow: hidden;
+		font-size: 13px;
+		font-weight: 650;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.model-copy p {
+		margin-top: 0.18rem;
+		color: #b4b6b1;
+		font-size: 12px;
+	}
+
+	.model-copy p.attention {
+		color: #f2aaaa;
+	}
+
+	.model-copy progress {
+		display: block;
+		width: min(12rem, 100%);
+		height: 0.25rem;
+		margin-top: 0.4rem;
+		border: 0;
 		border-radius: 1rem;
-		background: rgba(35, 65, 65, 0.08);
-		color: #234141;
+		background: #303b41;
+		accent-color: #9ccbe5;
 	}
 
-	button:disabled,
-	select:disabled {
-		opacity: 0.6;
-		cursor: default;
+	.model-copy progress::-webkit-progress-bar {
+		border-radius: 1rem;
+		background: #303b41;
 	}
 
-	button.secondary {
-		background: rgba(35, 65, 65, 0.12);
-		color: #234141;
+	.model-copy progress::-webkit-progress-value {
+		border-radius: 1rem;
+		background: #9ccbe5;
 	}
 
-	@media (max-width: 640px) {
-		.settings-shell {
+	.model-action,
+	.secondary-action,
+	.primary-action {
+		flex: 0 0 auto;
+		border: 1px solid #777a74;
+		border-radius: 0.4rem;
+		padding: 0.45rem 0.75rem;
+		background: #30322f;
+		color: #f4f4f0;
+		font: inherit;
+		font-size: 12px;
+		font-weight: 700;
+		cursor: pointer;
+	}
+
+	.model-action:hover,
+	.secondary-action:hover {
+		background: #3a3c39;
+	}
+
+	.model-state,
+	.model-progress {
+		flex: 0 0 auto;
+		color: #c7dce7;
+		font-size: 12px;
+		font-weight: 650;
+	}
+
+	.active-badge {
+		padding: 0.3rem 0.55rem;
+		background: #3b4430;
+		color: #d8f59a;
+	}
+
+	.empty-models {
+		padding: 1rem;
+		color: #b4b6b1;
+		font-size: 12px;
+	}
+
+	.app-action-error {
+		margin-top: 0.75rem;
+		color: #efb0b0;
+		font-size: 12px;
+	}
+
+	.app-action-error button {
+		border: 0;
+		padding: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		font-weight: 700;
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	.help-link {
+		display: inline-block;
+		margin-top: 1.1rem;
+		color: #d5f18d;
+		font-size: 12px;
+		font-weight: 700;
+		text-decoration: underline;
+		text-underline-offset: 0.22rem;
+	}
+
+	.debug-heading h1 {
+		font-size: 16px;
+	}
+
+	.debug-heading p {
+		margin-top: 0.25rem;
+		color: #bcbeb9;
+		font-size: 12px;
+	}
+
+	.diagnostics-list {
+		margin-top: 1rem;
+		overflow: hidden;
+		background: #1b1c1b;
+		font-size: 12px;
+	}
+
+	.diagnostics-list > div {
+		display: grid;
+		grid-template-columns: 6.5rem minmax(0, 1fr);
+		gap: 0.75rem;
+		padding: 0.8rem;
+	}
+
+	.diagnostics-list > div + div {
+		border-top: 1px solid #454744;
+	}
+
+	.diagnostics-list dt {
+		color: #bfc1bc;
+		font-weight: 700;
+	}
+
+	.diagnostics-list dd {
+		min-width: 0;
+		color: #e3e4df;
+		line-height: 1.45;
+		overflow-wrap: anywhere;
+	}
+
+	.diagnostic-positive {
+		color: #d8f59a;
+	}
+
+	.debug-error {
+		margin-top: 0.75rem;
+		border-left: 2px solid #c46d6d;
+		padding-left: 0.65rem;
+		color: #f0bcbc;
+		font-size: 12px;
+		line-height: 1.45;
+	}
+
+	.debug-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 1rem;
+	}
+
+	.primary-action {
+		border-color: #e9e9e2;
+		background: #e9e9e2;
+		color: #171817;
+	}
+
+	button:disabled {
+		cursor: not-allowed;
+		opacity: 0.52;
+	}
+
+	button:focus-visible,
+	a:focus-visible {
+		outline: 2px solid #d5f18d;
+		outline-offset: 2px;
+	}
+
+	@media (max-width: 540px), (max-height: 590px) {
+		.app-header {
+			height: 3rem;
+		}
+
+		.content {
+			max-height: calc(100vh - 3rem);
+			min-height: calc(100vh - 3rem);
 			padding: 1rem;
 		}
 
-		.settings-card {
-			padding: 1.5rem;
-			border-radius: 1.4rem;
+		.hotkey {
+			align-items: flex-start;
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+	}
+
+	@media (max-width: 420px) {
+		.section-heading span,
+		.header-spacer {
+			display: none;
 		}
 
-		.row {
+		.app-header {
+			grid-template-columns: 1fr auto;
+		}
+
+		.diagnostics-list > div {
 			grid-template-columns: 1fr;
-		}
-
-		.actions,
-		.runtime-actions {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
-		button,
-		select {
-			min-width: 0;
+			gap: 0.25rem;
 		}
 	}
 </style>

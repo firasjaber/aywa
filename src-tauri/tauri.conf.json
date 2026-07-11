@@ -15,8 +15,10 @@
         "label": "main",
         "title": "Settings",
         "url": "/",
-        "width": 960,
-        "height": 720,
+        "width": 600,
+        "height": 640,
+        "minWidth": 520,
+        "minHeight": 560,
         "resizable": true,
         "fullscreen": false,
         "visible": false
