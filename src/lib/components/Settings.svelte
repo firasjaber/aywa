@@ -115,13 +115,15 @@
 		return valueOrFallback($modelManager.workerRuntimeBootstrap.message);
 	});
 
-	const statusIcon = (tone: typeof appStatus.tone) => {
-		if (tone === 'positive') return '✓';
-		if (tone === 'warning') return '!';
-		if (tone === 'error') return '×';
-		if (tone === 'progress') return '…';
-		return 'O';
+	const statusIconKind = (tone: typeof appStatus.tone) => {
+		if (tone === 'positive') return 'check';
+		if (tone === 'warning') return 'warning';
+		if (tone === 'error') return 'error';
+		if (tone === 'progress') return 'spinner';
+		return 'download';
 	};
+
+	const statusIcon = $derived(statusIconKind(appStatus.tone));
 </script>
 
 <svelte:head>
@@ -158,7 +160,30 @@
 				<section class="status-card {appStatus.tone}" aria-live="polite">
 					<div class="status-heading">
 						<div class="status-copy">
-							<span class="status-icon" aria-hidden="true">{statusIcon(appStatus.tone)}</span>
+							<span class="status-icon" aria-hidden="true">
+								{#if statusIcon === 'spinner'}
+									<svg class="status-spinner" viewBox="0 0 24 24" aria-hidden="true">
+										<circle cx="12" cy="12" r="8" />
+									</svg>
+								{:else if statusIcon === 'download'}
+									<svg viewBox="0 0 24 24" aria-hidden="true">
+										<path d="M12 3v11m0 0 4-4m-4 4-4-4M5 19h14" />
+									</svg>
+								{:else if statusIcon === 'check'}
+									<svg viewBox="0 0 24 24" aria-hidden="true">
+										<path d="m5 12 4 4L19 6" />
+									</svg>
+								{:else if statusIcon === 'warning'}
+									<svg viewBox="0 0 24 24" aria-hidden="true">
+										<path d="M12 4 3.5 19h17L12 4Zm0 5v4m0 3h.01" />
+									</svg>
+								{:else}
+									<svg viewBox="0 0 24 24" aria-hidden="true">
+										<circle cx="12" cy="12" r="8" />
+										<path d="M12 8v5m0 3h.01" />
+									</svg>
+								{/if}
+							</span>
 							<div>
 								<h1>{appStatus.title}</h1>
 								<p>{appStatus.detail}</p>
@@ -483,7 +508,28 @@
 		border-radius: 50%;
 		background: #9aa09a;
 		color: #141514;
-		font-weight: 800;
+	}
+
+	.status-icon svg {
+		width: 1rem;
+		height: 1rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 2;
+	}
+
+	.status-spinner {
+		stroke-dasharray: 38 12;
+		transform-origin: center;
+		animation: status-spin 0.9s linear infinite;
+	}
+
+	@keyframes status-spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	h1,
@@ -828,6 +874,12 @@
 			align-items: flex-start;
 			flex-direction: column;
 			gap: 0.5rem;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.status-spinner {
+			animation: none;
 		}
 	}
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores/appState';
 
-	const pulseStates = new Set(['listening', 'processing']);
+	const pulseStates = new Set(['listening']);
 </script>
 
 <svelte:head>
@@ -37,27 +37,27 @@
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		padding: 0.75rem;
+		padding: 0.5rem;
 		pointer-events: none;
 	}
 
 	.pill {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.7rem;
-		min-width: 11rem;
-		padding: 0.85rem 1.15rem;
-		border: 1px solid rgba(255, 255, 255, 0.18);
-		border-radius: 999px;
-		background: linear-gradient(135deg, rgba(18, 27, 29, 0.9), rgba(33, 48, 52, 0.82));
-		box-shadow: 0 16px 32px rgba(4, 10, 11, 0.26);
-		backdrop-filter: blur(16px);
-		color: #f5f1ea;
+		gap: 0.5rem;
+		min-width: 0;
+		padding: 0.55rem 0.7rem;
+		border: 1px solid rgba(244, 244, 240, 0.16);
+		border-radius: 0.6rem;
+		background: rgba(32, 33, 32, 0.94);
+		box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+		backdrop-filter: blur(12px);
+		color: #f4f4f0;
 	}
 
 	.dot {
-		width: 0.7rem;
-		height: 0.7rem;
+		width: 0.55rem;
+		height: 0.55rem;
 		border-radius: 999px;
 		background: #ffb36d;
 		box-shadow: 0 0 0 0 rgba(255, 179, 109, 0.45);
@@ -78,9 +78,9 @@
 	}
 
 	.label {
-		font-size: 0.95rem;
+		font-size: 0.75rem;
 		font-weight: 700;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.04em;
 		text-transform: uppercase;
 	}
 
@@ -90,11 +90,17 @@
 		}
 
 		70% {
-			box-shadow: 0 0 0 12px rgba(255, 179, 109, 0);
+			box-shadow: 0 0 0 8px rgba(255, 179, 109, 0);
 		}
 
 		100% {
 			box-shadow: 0 0 0 0 rgba(255, 179, 109, 0);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.pulse {
+			animation: none;
 		}
 	}
 </style>

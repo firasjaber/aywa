@@ -165,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn processing_has_transcribing_message() {
+    fn processing_state_uses_concise_transcribing_copy() {
         assert_eq!(
             AppState::Processing.default_message(None),
             Some("Transcribing...".to_string())
