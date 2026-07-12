@@ -43,6 +43,7 @@ pub struct ModelManagerSnapshot {
     pub operating_system: String,
     pub runtime_preflight: RuntimePreflight,
     pub worker_cuda_status: WorkerCudaStatus,
+    pub live_execution_device: Option<String>,
     pub worker_runtime_bootstrap: WorkerRuntimeBootstrap,
     pub runtime_profile: RuntimeProfileSnapshot,
     pub diagnostics_log_path: Option<String>,
@@ -54,6 +55,7 @@ pub struct ModelManagerState {
     pub registry: Mutex<ModelRegistry>,
     pub transient_statuses: Mutex<BTreeMap<String, ModelStatus>>,
     pub worker_cuda_status: Mutex<WorkerCudaStatus>,
+    pub live_execution_device: Mutex<Option<String>>,
     pub worker_runtime_bootstrap: Mutex<WorkerRuntimeBootstrap>,
 }
 
@@ -63,6 +65,7 @@ impl Default for ModelManagerState {
             registry: Mutex::new(ModelRegistry::default()),
             transient_statuses: Mutex::new(BTreeMap::new()),
             worker_cuda_status: Mutex::new(default_worker_cuda_status()),
+            live_execution_device: Mutex::new(None),
             worker_runtime_bootstrap: Mutex::new(WorkerRuntimeBootstrap {
                 status: WorkerRuntimeBootstrapStatus::Idle,
                 message: None,
@@ -93,6 +96,11 @@ impl ModelManagerState {
             .lock()
             .expect("worker bootstrap mutex poisoned")
             .clone();
+        let live_execution_device = self
+            .live_execution_device
+            .lock()
+            .expect("live execution device mutex poisoned")
+            .clone();
         let runtime_profile = runtime_profile::service::load_runtime_profile_snapshot(
             app,
             &worker_runtime_bootstrap,
@@ -103,6 +111,7 @@ impl ModelManagerState {
             &registry,
             &transient_statuses,
             worker_cuda_status,
+            live_execution_device,
             worker_runtime_bootstrap,
             runtime_profile,
             diagnostics_log_path,
@@ -408,45 +417,69 @@ pub fn load_model<R: Runtime>(
     }
     .ok_or_else(|| format!("{} is not downloaded", model_id.as_str()))?;
 
-    let prepared = prepare_model(&installed, model_id);
-    if let Err(error) = runtime::load_check(&prepared) {
-        let error = error.to_string();
-        let path = registry_path(app).map_err(|path_error| path_error.to_string())?;
-        let mut registry = state
-            .registry
-            .lock()
-            .map_err(|_| "model registry mutex poisoned".to_string())?;
-        if error == "installed model file is missing" {
-            invalidate_installed_model(&mut registry, model_id, Some(error.clone()));
-        } else {
-            registry
-                .model_errors
-                .insert(model_id.as_str().to_string(), error.clone());
-        }
-        registry::save(&path, &registry).map_err(|save_error| save_error.to_string())?;
-        drop(registry);
-        let _ = emit_snapshot(app, state);
-        return Err(error);
-    }
-
-    if let Err(error) = transcribe::ensure_loaded(app, model_id, &prepared.model_path) {
-        let path = registry_path(app).map_err(|path_error| path_error.to_string())?;
-        let mut registry = state
-            .registry
-            .lock()
-            .map_err(|_| "model registry mutex poisoned".to_string())?;
-        registry.loaded_model_id = None;
-        registry
-            .model_errors
-            .insert(model_id.as_str().to_string(), error.clone());
-        registry::save(&path, &registry).map_err(|save_error| save_error.to_string())?;
-        drop(registry);
-        let _ = emit_snapshot(app, state);
-        return Err(error);
-    }
-
-    let path = registry_path(app).map_err(|error| error.to_string())?;
     {
+        let mut transient_statuses = state
+            .transient_statuses
+            .lock()
+            .map_err(|_| "transient status mutex poisoned".to_string())?;
+        if activation_in_progress(&transient_statuses) {
+            return Err("A model is already being activated. Wait for it to finish.".to_string());
+        }
+        transient_statuses.insert(model_id.as_str().to_string(), ModelStatus::Loading);
+    }
+
+    let snapshot = emit_snapshot(app, state)?;
+    let app = app.clone();
+    let prepared = prepare_model(&installed, model_id);
+    thread::spawn(move || {
+        let state = app.state::<ModelManagerState>();
+        complete_model_load(&app, state.inner(), model_id, prepared);
+    });
+
+    Ok(snapshot)
+}
+
+fn activation_in_progress(transient_statuses: &BTreeMap<String, ModelStatus>) -> bool {
+    transient_statuses
+        .values()
+        .any(|status| *status == ModelStatus::Loading)
+}
+
+fn complete_model_load<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+    model_id: ModelId,
+    prepared: PreparedModel,
+) {
+    let result = (|| -> Result<(), String> {
+        runtime::load_check(&prepared).map_err(|error| error.to_string())?;
+        let worker_device = transcribe::ensure_loaded(app, model_id, &prepared.model_path)?;
+
+        if let Some(ref device) = worker_device {
+            if let Ok(mut live_device) = state.live_execution_device.lock() {
+                *live_device = Some(normalize_worker_device(device));
+            }
+        }
+
+        let worker_confirmed_gpu = worker_device
+            .as_deref()
+            .is_some_and(|device| normalize_worker_device(device) == "gpu");
+        match transcribe::probe_worker_cuda(app) {
+            Ok(mut cuda_status) => {
+                if worker_confirmed_gpu {
+                    cuda_status.cuda_available = true;
+                    cuda_status.reason = None;
+                }
+                if let Ok(mut current) = state.worker_cuda_status.lock() {
+                    *current = cuda_status;
+                }
+            }
+            Err(error) => diagnostics::log(format!(
+                "[model_manager] live CUDA probe failed after worker load: {error}"
+            )),
+        }
+
+        let path = registry_path(app).map_err(|error| error.to_string())?;
         let mut registry = state
             .registry
             .lock()
@@ -454,9 +487,46 @@ pub fn load_model<R: Runtime>(
         registry.loaded_model_id = Some(model_id);
         registry.model_errors.remove(model_id.as_str());
         registry::save(&path, &registry).map_err(|error| error.to_string())?;
+        Ok(())
+    })();
+
+    if let Err(error) = result {
+        diagnostics::log(format!(
+            "[model_manager] load_model failed model_id={} error={error}",
+            model_id.as_str()
+        ));
+        if let Ok(path) = registry_path(app) {
+            if let Ok(mut registry) = state.registry.lock() {
+                registry.loaded_model_id = None;
+                if error == "installed model file is missing" {
+                    invalidate_installed_model(&mut registry, model_id, Some(error.clone()));
+                } else {
+                    registry
+                        .model_errors
+                        .insert(model_id.as_str().to_string(), error);
+                }
+                if let Err(save_error) = registry::save(&path, &registry) {
+                    diagnostics::log(format!(
+                        "[model_manager] load_model error save failed model_id={} error={save_error}",
+                        model_id.as_str()
+                    ));
+                }
+            }
+        }
+        if let Ok(mut live_device) = state.live_execution_device.lock() {
+            *live_device = None;
+        }
     }
 
-    emit_snapshot(app, state)
+    if let Ok(mut transient_statuses) = state.transient_statuses.lock() {
+        transient_statuses.remove(model_id.as_str());
+    }
+    if let Err(error) = emit_snapshot(app, state) {
+        diagnostics::log(format!(
+            "[model_manager] load_model emit snapshot failed model_id={} error={error}",
+            model_id.as_str()
+        ));
+    }
 }
 
 pub fn unload_model<R: Runtime>(
@@ -464,6 +534,9 @@ pub fn unload_model<R: Runtime>(
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
     transcribe::unload(app)?;
+    if let Ok(mut live_device) = state.live_execution_device.lock() {
+        *live_device = None;
+    }
 
     let path = registry_path(app).map_err(|error| error.to_string())?;
 
@@ -507,6 +580,10 @@ pub fn clear_model_cache<R: Runtime>(
 
     if models_root.exists() {
         fs::remove_dir_all(&models_root).map_err(|error| error.to_string())?;
+    }
+
+    if let Ok(mut live_device) = state.live_execution_device.lock() {
+        *live_device = None;
     }
 
     {
@@ -698,6 +775,7 @@ fn snapshot_from_registry(
     registry: &ModelRegistry,
     transient_statuses: &BTreeMap<String, ModelStatus>,
     worker_cuda_status: WorkerCudaStatus,
+    live_execution_device: Option<String>,
     worker_runtime_bootstrap: WorkerRuntimeBootstrap,
     runtime_profile: RuntimeProfileSnapshot,
     diagnostics_log_path: Option<String>,
@@ -740,10 +818,19 @@ fn snapshot_from_registry(
         ready_for_transcription: registry.loaded_model_id.is_some() && runtime_ready,
         runtime_preflight,
         worker_cuda_status,
+        live_execution_device,
         worker_runtime_bootstrap,
         runtime_profile,
         diagnostics_log_path,
         models,
+    }
+}
+
+fn normalize_worker_device(device: &str) -> String {
+    match device {
+        "cuda" | "gpu" => "gpu".to_string(),
+        "cpu" | "cpu_fallback" => "cpu_fallback".to_string(),
+        other => other.to_string(),
     }
 }
 
@@ -810,7 +897,7 @@ mod tests {
     };
     use crate::runtime_profile::service::default_runtime_profile_snapshot;
 
-    use super::{remove_missing_installed_models, snapshot_from_registry};
+    use super::{activation_in_progress, remove_missing_installed_models, snapshot_from_registry};
 
     #[test]
     fn loading_a_new_model_replaces_the_old_one() {
@@ -823,6 +910,42 @@ mod tests {
     fn loaded_model_id_is_not_set_before_worker_ready() {
         let registry = crate::model_manager::registry::ModelRegistry::default();
         assert_eq!(registry.loaded_model_id, None);
+    }
+
+    #[test]
+    fn loading_status_is_reported_and_blocks_another_activation() {
+        let mut transient_statuses = BTreeMap::new();
+        transient_statuses.insert(
+            ModelId::ParakeetV02En.as_str().to_string(),
+            ModelStatus::Loading,
+        );
+
+        let snapshot = snapshot_from_registry(
+            &ModelRegistry::default(),
+            &transient_statuses,
+            WorkerCudaStatus {
+                cuda_available: false,
+                reason: None,
+                gpu_name: None,
+                torch_version: None,
+                cuda_version: None,
+            },
+            None,
+            WorkerRuntimeBootstrap {
+                status: WorkerRuntimeBootstrapStatus::Ready,
+                message: None,
+            },
+            default_runtime_profile_snapshot(),
+            None,
+        );
+        let row = snapshot
+            .models
+            .iter()
+            .find(|row| row.model_id == ModelId::ParakeetV02En)
+            .unwrap();
+
+        assert_eq!(row.status, ModelStatus::Loading);
+        assert!(activation_in_progress(&transient_statuses));
     }
 
     #[test]
@@ -851,6 +974,7 @@ mod tests {
                 torch_version: None,
                 cuda_version: None,
             },
+            None,
             WorkerRuntimeBootstrap {
                 status: WorkerRuntimeBootstrapStatus::Ready,
                 message: Some("ready".to_string()),
@@ -897,6 +1021,7 @@ mod tests {
                 torch_version: None,
                 cuda_version: None,
             },
+            None,
             WorkerRuntimeBootstrap {
                 status: WorkerRuntimeBootstrapStatus::Ready,
                 message: Some("ready".to_string()),

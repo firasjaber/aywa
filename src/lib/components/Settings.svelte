@@ -17,11 +17,13 @@
 	} from './settingsView';
 
 	let activeTab = $state<SettingsTab>('app');
-	let activatingModelId = $state<ModelId | null>(null);
 	let actionError = $state<string | null>(null);
 	let downloadProgress = $state<Partial<Record<ModelId, number>>>({});
+	const activatingModelId = $derived(
+		$modelManager.models.find((model) => model.status === 'Loading')?.modelId ?? null
+	);
 
-	const appStatus = $derived(selectAppStatus($modelManager, activatingModelId));
+	const appStatus = $derived(selectAppStatus($modelManager));
 
 	onMount(() => {
 		const timer = window.setInterval(() => {
@@ -73,13 +75,10 @@
 
 	const activate = async (modelId: ModelId) => {
 		actionError = null;
-		activatingModelId = modelId;
 		try {
 			await loadModel(modelId);
 		} catch (error) {
 			actionError = errorText(error);
-		} finally {
-			activatingModelId = null;
 		}
 	};
 
@@ -262,10 +261,10 @@
 
 				<dl class="diagnostics-list">
 					<div>
-						<dt>System</dt>
+						<dt>System tools</dt>
 						<dd>
 							{valueOrFallback($modelManager.operatingSystem)} ·
-							{valueOrFallback($modelManager.runtimePreflight.gpuName, 'GPU not detected')} · Driver
+							{valueOrFallback($modelManager.runtimePreflight.gpuName, 'not detected')} · Driver
 							{valueOrFallback($modelManager.runtimePreflight.driverVersion)}
 						</dd>
 					</div>

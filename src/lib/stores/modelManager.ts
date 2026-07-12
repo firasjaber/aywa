@@ -91,6 +91,7 @@ export type ModelManagerSnapshot = {
 	operatingSystem: string;
 	runtimePreflight: RuntimePreflight;
 	workerCudaStatus: WorkerCudaStatus;
+	liveExecutionDevice: string | null;
 	workerRuntimeBootstrap: WorkerRuntimeBootstrap;
 	runtimeProfile: RuntimeProfileSnapshot;
 	diagnosticsLogPath: string | null;
@@ -110,6 +111,7 @@ const initialState: ModelManagerSnapshot = {
 		torchVersion: null,
 		cudaVersion: null
 	},
+	liveExecutionDevice: null,
 	workerRuntimeBootstrap: {
 		status: 'idle',
 		message: null
@@ -134,15 +136,17 @@ const initialState: ModelManagerSnapshot = {
 export const modelManager = readable<ModelManagerSnapshot>(initialState, (set) => {
 	let unlisten: UnlistenFn | undefined;
 
-	invoke<ModelManagerSnapshot>('list_models').then(set).catch(() => set(initialState));
-
 	listen<ModelManagerSnapshot>('model-manager-changed', (event) => {
 		set(event.payload);
 	})
 		.then((cleanup) => {
 			unlisten = cleanup;
+			return invoke<ModelManagerSnapshot>('list_models');
 		})
-		.catch(() => set(initialState));
+		.then(set)
+		.catch(() => {
+			invoke<ModelManagerSnapshot>('list_models').then(set).catch(() => set(initialState));
+		});
 
 	return () => {
 		unlisten?.();

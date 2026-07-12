@@ -1,6 +1,5 @@
 import type {
 	ModelManagerSnapshot,
-	ModelRow,
 	WorkerRuntimeBootstrapStatus
 } from '$lib/stores/modelManager';
 
@@ -34,15 +33,14 @@ export const modelLabel = (snapshot: ModelManagerSnapshot, modelId: string | nul
 	snapshot.models.find((model) => model.modelId === modelId)?.label ?? 'Not available';
 
 export const executionDeviceLabel = (snapshot: ModelManagerSnapshot) => {
-	const device = snapshot.runtimeProfile.actualExecutionDevice;
+	const device = snapshot.liveExecutionDevice;
 	if (device === 'gpu') return 'NVIDIA GPU';
 	if (device === 'cpu_fallback') return 'CPU';
 	return 'Not detected';
 };
 
 export const selectAppStatus = (
-	snapshot: ModelManagerSnapshot,
-	activatingModelId: ModelRow['modelId'] | null
+	snapshot: ModelManagerSnapshot
 ): AppStatusView => {
 	const failedModel = snapshot.readyForTranscription
 		? undefined
@@ -73,10 +71,11 @@ export const selectAppStatus = (
 		};
 	}
 
-	if (activatingModelId) {
+	const activatingModel = snapshot.models.find((model) => model.status === 'Loading');
+	if (activatingModel) {
 		return {
 			tone: 'progress',
-			title: `Preparing ${modelLabel(snapshot, activatingModelId)}`,
+			title: `Activating ${activatingModel.label}`,
 			detail: 'This model will become active when it is ready.',
 			badge: null,
 			showHotkey: false
@@ -96,7 +95,7 @@ export const selectAppStatus = (
 	}
 
 	if (snapshot.readyForTranscription) {
-		if (snapshot.runtimeProfile.actualExecutionDevice === 'cpu_fallback') {
+		if (snapshot.liveExecutionDevice === 'cpu_fallback') {
 			return {
 				tone: 'warning',
 				title: 'Ready — CPU mode',
@@ -107,7 +106,7 @@ export const selectAppStatus = (
 			};
 		}
 
-		if (snapshot.runtimeProfile.actualExecutionDevice === 'gpu') {
+		if (snapshot.liveExecutionDevice === 'gpu') {
 			return {
 				tone: 'positive',
 				title: 'Ready to dictate',

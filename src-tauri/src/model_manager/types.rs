@@ -38,6 +38,7 @@ pub enum ModelStatus {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct RuntimePreflight {
     pub supported: bool,
     pub reason: Option<String>,
@@ -46,6 +47,7 @@ pub struct RuntimePreflight {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkerCudaStatus {
     pub cuda_available: bool,
     pub reason: Option<String>,
@@ -88,4 +90,36 @@ pub struct PreparedModel {
     pub version: String,
     pub model_path: PathBuf,
     pub runtime: &'static str,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RuntimePreflight, WorkerCudaStatus};
+
+    #[test]
+    fn diagnostic_types_serialize_with_frontend_field_names() {
+        let preflight = serde_json::to_value(RuntimePreflight {
+            supported: true,
+            reason: None,
+            gpu_name: Some("NVIDIA GPU".to_string()),
+            driver_version: Some("576.80".to_string()),
+        })
+        .unwrap();
+        let cuda = serde_json::to_value(WorkerCudaStatus {
+            cuda_available: true,
+            reason: None,
+            gpu_name: Some("NVIDIA GPU".to_string()),
+            torch_version: Some("2.7.0+cu128".to_string()),
+            cuda_version: Some("12.8".to_string()),
+        })
+        .unwrap();
+
+        assert_eq!(preflight["gpuName"], "NVIDIA GPU");
+        assert_eq!(preflight["driverVersion"], "576.80");
+        assert!(preflight.get("gpu_name").is_none());
+        assert_eq!(cuda["cudaAvailable"], true);
+        assert_eq!(cuda["torchVersion"], "2.7.0+cu128");
+        assert_eq!(cuda["cudaVersion"], "12.8");
+        assert!(cuda.get("cuda_available").is_none());
+    }
 }

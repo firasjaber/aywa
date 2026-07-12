@@ -579,7 +579,7 @@ pub fn ensure_loaded<R: Runtime>(
     app: &AppHandle<R>,
     model_id: ModelId,
     model_path: &Path,
-) -> Result<(), String> {
+) -> Result<Option<String>, String> {
     let root = app_data_dir(app)?;
     let python_exe = ensure_worker_python_ready(app)?;
 
@@ -591,7 +591,7 @@ pub fn ensure_loaded<R: Runtime>(
 
     if let Some(existing) = slot.as_mut() {
         if existing.loaded_model_id == model_id && !existing.has_exited()? {
-            return Ok(());
+            return Ok(None);
         }
     }
 
@@ -615,11 +615,8 @@ pub fn ensure_loaded<R: Runtime>(
             return Err(error);
         }
     };
-    if let Some(device) = ready_device {
-        let _ = crate::runtime_profile::service::record_worker_execution_device(app, &device);
-    }
     *slot = Some(handle);
-    Ok(())
+    Ok(ready_device)
 }
 
 pub fn transcribe_file<R: Runtime>(
@@ -815,6 +812,10 @@ fn clear_loaded_model_state<R: Runtime>(
 
     if registry.loaded_model_id == Some(model_id) {
         registry.loaded_model_id = None;
+    }
+
+    if let Ok(mut live_device) = state.live_execution_device.lock() {
+        *live_device = None;
     }
 
     if let Some(error_message) = error_message {
