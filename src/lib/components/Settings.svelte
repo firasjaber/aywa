@@ -127,13 +127,16 @@
 </script>
 
 <svelte:head>
-	<title>OK Settings</title>
+	<title>Aywa Settings</title>
 </svelte:head>
 
 <main class="settings-shell">
-	<section class="settings-window" aria-label="OK settings">
+	<section class="settings-window" aria-label="Aywa settings">
 		<header class="app-header">
-			<div class="brand"><span aria-hidden="true">O</span><strong>OK</strong></div>
+			<div class="brand">
+				<img src="/logo/png/circular/aywa-circle-32.png" alt="" />
+				<strong>Aywa</strong>
+			</div>
 			<div class="tabs" aria-label="Settings sections" role="tablist">
 				<button
 					type="button"
@@ -274,7 +277,7 @@
 				{/if}
 
 				<a class="help-link" href="#setup" onclick={(event) => event.preventDefault()}
-					>Need help setting up OK?</a
+					>Need help setting up Aywa?</a
 				>
 			</div>
 		{:else}
@@ -380,16 +383,9 @@
 		font-size: 14px;
 	}
 
-	.brand span {
-		display: grid;
+	.brand img {
 		width: 1.25rem;
 		height: 1.25rem;
-		place-items: center;
-		border-radius: 0.3rem;
-		background: #e9e9e2;
-		color: #171817;
-		font-size: 11px;
-		font-weight: 800;
 	}
 
 	.tabs {

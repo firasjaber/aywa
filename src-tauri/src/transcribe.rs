@@ -74,7 +74,8 @@ impl WorkerResponse {
     pub fn matches_request(&self, request_id: &str) -> bool {
         match self {
             Self::TranscribeResult {
-                request_id: current, ..
+                request_id: current,
+                ..
             } => current == request_id,
             Self::Error {
                 request_id: Some(current),
@@ -185,10 +186,16 @@ pub fn bootstrap_runtime(app_data_root: &Path) -> Result<(), String> {
     fs::create_dir_all(worker_runtime_dir(app_data_root)).map_err(|error| error.to_string())?;
     fs::create_dir_all(python_runtime_dir(app_data_root)).map_err(|error| error.to_string())?;
     write_runtime_file(&worker_entrypoint(app_data_root), WORKER_MAIN_SOURCE)?;
-    write_runtime_file(&worker_smoke_test_path(app_data_root), RUNTIME_SMOKE_TEST_SOURCE)?;
+    write_runtime_file(
+        &worker_smoke_test_path(app_data_root),
+        RUNTIME_SMOKE_TEST_SOURCE,
+    )?;
     write_runtime_file(&worker_protocol_path(app_data_root), WORKER_PROTOCOL_SOURCE)?;
     write_runtime_file(&worker_transcriber_path(app_data_root), TRANSCRIBER_SOURCE)?;
-    write_runtime_file(&worker_requirements_path(app_data_root), REQUIREMENTS_SOURCE)?;
+    write_runtime_file(
+        &worker_requirements_path(app_data_root),
+        REQUIREMENTS_SOURCE,
+    )?;
     Ok(())
 }
 
@@ -197,7 +204,10 @@ pub fn verify_runtime_layout(app_data_root: &Path) -> Result<PathBuf, String> {
     let worker_script = worker_entrypoint(app_data_root);
 
     if !worker_script.exists() {
-        return Err(format!("worker entrypoint missing: {}", worker_script.display()));
+        return Err(format!(
+            "worker entrypoint missing: {}",
+            worker_script.display()
+        ));
     }
 
     Ok(python_exe)
@@ -207,7 +217,10 @@ fn ensure_worker_python_ready<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf,
     crate::runtime_profile::service::ensure_worker_python_ready(app)
 }
 
-pub fn prepare_worker_runtime<R, F>(app: &AppHandle<R>, progress: F) -> Result<WorkerCudaStatus, String>
+pub fn prepare_worker_runtime<R, F>(
+    app: &AppHandle<R>,
+    progress: F,
+) -> Result<WorkerCudaStatus, String>
 where
     R: Runtime,
     F: FnMut(WorkerRuntimeBootstrapStatus, Option<String>, Option<WorkerCudaStatus>),
@@ -269,7 +282,10 @@ pub(crate) fn install_runtime_profile_packages(
     )
 }
 
-pub(crate) fn install_worker_requirements(python_exe: &Path, requirements_path: &Path) -> Result<(), String> {
+pub(crate) fn install_worker_requirements(
+    python_exe: &Path,
+    requirements_path: &Path,
+) -> Result<(), String> {
     let requirements = requirements_path
         .to_str()
         .ok_or_else(|| "requirements path is not valid UTF-8".to_string())?;
@@ -292,7 +308,11 @@ pub(crate) fn install_worker_requirements(python_exe: &Path, requirements_path: 
     )
 }
 
-pub(crate) fn run_python_command(python_exe: &Path, args: &[&str], description: &str) -> Result<(), String> {
+pub(crate) fn run_python_command(
+    python_exe: &Path,
+    args: &[&str],
+    description: &str,
+) -> Result<(), String> {
     crate::diagnostics::run_logged_command(python_exe, args, description)
 }
 
@@ -323,7 +343,9 @@ fn probe_worker_cuda_with_python(python_exe: &Path) -> Result<WorkerCudaStatus, 
     })
 }
 
-pub(crate) fn probe_worker_runtime_with_python(python_exe: &Path) -> Result<WorkerRuntimeProbeResult, String> {
+pub(crate) fn probe_worker_runtime_with_python(
+    python_exe: &Path,
+) -> Result<WorkerRuntimeProbeResult, String> {
     const PROBE_SCRIPT: &str = r#"import json
 result = {
     'dependencies_ready': False,
@@ -660,22 +682,24 @@ pub fn transcribe_file<R: Runtime>(
                 request_id: request_id.clone(),
                 audio_path: audio_path.display().to_string(),
             }) {
-                Ok(()) => match worker.wait_for_transcribe_result(&request_id, TRANSCRIBE_TIMEOUT) {
-                    Ok((text, duration_ms)) => {
-                        eprintln!(
-                            "[transcribe] success request_id={} chars={} duration_ms={}",
-                            request_id,
-                            text.chars().count(),
-                            duration_ms
-                        );
-                        Outcome::Success(TranscriptionResult { text, duration_ms })
+                Ok(()) => {
+                    match worker.wait_for_transcribe_result(&request_id, TRANSCRIBE_TIMEOUT) {
+                        Ok((text, duration_ms)) => {
+                            eprintln!(
+                                "[transcribe] success request_id={} chars={} duration_ms={}",
+                                request_id,
+                                text.chars().count(),
+                                duration_ms
+                            );
+                            Outcome::Success(TranscriptionResult { text, duration_ms })
+                        }
+                        Err(failure) => Outcome::Error {
+                            message: failure.message,
+                            terminal: failure.terminal,
+                            model_id: worker.loaded_model_id,
+                        },
                     }
-                    Err(failure) => Outcome::Error {
-                        message: failure.message,
-                        terminal: failure.terminal,
-                        model_id: worker.loaded_model_id,
-                    },
-                },
+                }
                 Err(error) => Outcome::Error {
                     message: error,
                     terminal: true,
@@ -700,7 +724,10 @@ pub fn transcribe_file<R: Runtime>(
             terminal: true,
             model_id,
         } => {
-            eprintln!("[transcribe] terminal worker failure model_id={} error={message}", model_id.as_str());
+            eprintln!(
+                "[transcribe] terminal worker failure model_id={} error={message}",
+                model_id.as_str()
+            );
             if let Some(existing) = slot.take() {
                 existing.shutdown();
             }
@@ -743,13 +770,13 @@ fn resolve_python_executable(app_data_root: &Path) -> Result<PathBuf, String> {
 
     let embedded = embedded_python_executable(app_data_root);
     Err(format!(
-        "embedded python missing: {}. No usable Python interpreter found. Set OK_PYTHON_EXE or install python on PATH.",
+        "embedded python missing: {}. No usable Python interpreter found. Set AYWA_PYTHON_EXE or install python on PATH.",
         embedded.display()
     ))
 }
 
 fn configured_python_override() -> Option<PathBuf> {
-    std::env::var_os("OK_PYTHON_EXE")
+    std::env::var_os("AYWA_PYTHON_EXE")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
 }
@@ -782,7 +809,10 @@ fn is_usable_python_command(candidate: &Path) -> bool {
 }
 
 fn path_requires_existing_file(candidate: &Path) -> bool {
-    candidate.is_absolute() || candidate.parent().is_some_and(|parent| parent != Path::new(""))
+    candidate.is_absolute()
+        || candidate
+            .parent()
+            .is_some_and(|parent| parent != Path::new(""))
 }
 
 fn write_runtime_file(path: &Path, contents: &str) -> Result<(), String> {
@@ -917,19 +947,25 @@ mod tests {
 
     #[test]
     fn worker_runtime_dir_is_under_runtime_worker() {
-        let root = Path::new("C:/AppData/OK");
-        assert_eq!(worker_runtime_dir(root), root.join("runtime").join("worker"));
+        let root = Path::new("C:/AppData/aywa");
+        assert_eq!(
+            worker_runtime_dir(root),
+            root.join("runtime").join("worker")
+        );
     }
 
     #[test]
     fn embedded_python_dir_is_under_runtime_python() {
-        let root = Path::new("C:/AppData/OK");
-        assert_eq!(python_runtime_dir(root), root.join("runtime").join("python"));
+        let root = Path::new("C:/AppData/aywa");
+        assert_eq!(
+            python_runtime_dir(root),
+            root.join("runtime").join("python")
+        );
     }
 
     #[test]
     fn embedded_python_executable_points_to_python_exe() {
-        let root = Path::new("C:/AppData/OK");
+        let root = Path::new("C:/AppData/aywa");
         assert_eq!(
             embedded_python_executable(root),
             root.join("runtime").join("python").join("python.exe")
@@ -938,17 +974,21 @@ mod tests {
 
     #[test]
     fn python_command_candidates_prefer_override_then_embedded_then_path_python() {
-        let root = Path::new("C:/AppData/OK");
-        let candidates = python_command_candidates(root, Some(Path::new("D:/custom/python.exe").to_path_buf()));
+        let root = Path::new("C:/AppData/aywa");
+        let candidates =
+            python_command_candidates(root, Some(Path::new("D:/custom/python.exe").to_path_buf()));
 
         assert_eq!(candidates[0], Path::new("D:/custom/python.exe"));
-        assert_eq!(candidates[1], root.join("runtime").join("python").join("python.exe"));
+        assert_eq!(
+            candidates[1],
+            root.join("runtime").join("python").join("python.exe")
+        );
         assert_eq!(candidates[2], Path::new("python"));
     }
 
     #[test]
     fn worker_entrypoint_points_to_worker_main() {
-        let root = Path::new("C:/AppData/OK");
+        let root = Path::new("C:/AppData/aywa");
         assert_eq!(
             worker_entrypoint(root),
             root.join("runtime").join("worker").join("worker_main.py")

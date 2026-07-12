@@ -14,7 +14,7 @@ static LOG_FILE: OnceLock<Mutex<File>> = OnceLock::new();
 static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
 
 pub fn diagnostics_log_path(app_data_root: &Path) -> PathBuf {
-    app_data_root.join("logs").join("ok-debug.log")
+    app_data_root.join("logs").join("aywa-debug.log")
 }
 
 pub fn init(app_data_root: &Path) -> Result<PathBuf, String> {
@@ -301,10 +301,10 @@ mod ui_support_tests {
 
     #[test]
     fn explorer_select_arg_targets_the_log_file() {
-        let path = Path::new(r"C:\Users\Test User\AppData\Local\ok\logs\ok-debug.log");
+        let path = Path::new(r"C:\Users\Test User\AppData\Local\aywa\logs\aywa-debug.log");
         assert_eq!(
             explorer_select_arg(path),
-            r"/select,C:\Users\Test User\AppData\Local\ok\logs\ok-debug.log"
+            r"/select,C:\Users\Test User\AppData\Local\aywa\logs\aywa-debug.log"
         );
     }
 }

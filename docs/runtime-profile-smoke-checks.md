@@ -54,10 +54,10 @@ npm run check
 ## Development Managed Runtime
 
 1. Close the app.
-2. Delete `%LOCALAPPDATA%/com.ok.speech/runtime/python`.
+2. Delete `%LOCALAPPDATA%/com.aywa.speech/runtime/python`.
 3. Run `npm run tauri:dev:managed-python`.
 4. Confirm Settings shows runtime setup progressing through bundled Python preparation.
-5. Confirm logs for model load include `python_exe=%LOCALAPPDATA%/com.ok.speech/runtime/python/python.exe`.
+5. Confirm logs for model load include `python_exe=%LOCALAPPDATA%/com.aywa.speech/runtime/python/python.exe`.
 6. Switch between Auto and Manual runtime profiles and confirm profile install and smoke-test behavior still works.
 7. Load a downloaded model and run a short transcription.
 
@@ -67,6 +67,6 @@ npm run check
 2. Install the published app build.
 3. Start the app and open Settings.
 4. Confirm runtime setup reaches `ready` without manually installing Python.
-5. Confirm `%LOCALAPPDATA%/com.ok.speech/runtime/python/python.exe` exists.
+5. Confirm `%LOCALAPPDATA%/com.aywa.speech/runtime/python/python.exe` exists.
 6. Confirm the selected runtime profile installs packages and completes the smoke test.
 7. Load a downloaded model and run a short transcription.

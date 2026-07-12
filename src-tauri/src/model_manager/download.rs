@@ -44,7 +44,9 @@ pub fn verify_sha256(path: &Path, expected: &str) -> anyhow::Result<()> {
 
     let actual = format!("{:x}", hasher.finalize());
     if actual != expected {
-        return Err(anyhow!("checksum mismatch: expected {expected}, got {actual}"));
+        return Err(anyhow!(
+            "checksum mismatch: expected {expected}, got {actual}"
+        ));
     }
     Ok(())
 }
@@ -172,7 +174,7 @@ mod tests {
     #[test]
     fn verified_file_is_promoted_into_the_install_directory() {
         let root = std::env::temp_dir().join(format!(
-            "ok-model-manager-download-test-{}",
+            "aywa-model-manager-download-test-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&root);
@@ -190,8 +192,7 @@ mod tests {
             version: "sha256-2689367b205c".to_string(),
             file_name: "parakeet.nemo".to_string(),
             download_url: "https://example.invalid/model".to_string(),
-            sha256: "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
-                .to_string(),
+            sha256: "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df".to_string(),
             size_bytes: 2,
         };
 

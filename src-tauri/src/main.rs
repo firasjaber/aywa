@@ -7,7 +7,7 @@ use tauri::{
     AppHandle, Manager, State,
 };
 
-use ok_lib::{
+use aywa_lib::{
     model_manager::{
         service::{ModelManagerSnapshot, ModelManagerState},
         types::ModelId,
@@ -25,10 +25,9 @@ fn build_tray<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, QUIT_MENU_ID, "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&settings, &separator, &quit])?;
-    let icon = app
-        .default_window_icon()
-        .expect("default window icon should be configured")
-        .clone();
+    let icon = tauri::image::Image::from_bytes(include_bytes!(
+        "../../static/logo/tray/aywa-tray-color-32.png"
+    ))?;
 
     TrayIconBuilder::new()
         .icon(icon)
@@ -36,7 +35,7 @@ fn build_tray<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             SETTINGS_MENU_ID => {
-                let _ = ok_lib::reveal_settings(app);
+                let _ = aywa_lib::reveal_settings(app);
             }
             QUIT_MENU_ID => app.exit(0),
             _ => {}
@@ -48,7 +47,7 @@ fn build_tray<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                 ..
             } = event
             {
-                let _ = ok_lib::reveal_settings(tray.app_handle());
+                let _ = aywa_lib::reveal_settings(tray.app_handle());
             }
         })
         .build(app)?;
@@ -58,37 +57,37 @@ fn build_tray<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
 #[tauri::command]
 fn show_settings(app: AppHandle) -> Result<(), String> {
-    ok_lib::show_settings(app)
+    aywa_lib::show_settings(app)
 }
 
 #[tauri::command]
 fn show_overlay(app: AppHandle) -> Result<(), String> {
-    ok_lib::show_overlay(app)
+    aywa_lib::show_overlay(app)
 }
 
 #[tauri::command]
 fn hide_overlay(app: AppHandle) -> Result<(), String> {
-    ok_lib::hide_overlay(app)
+    aywa_lib::hide_overlay(app)
 }
 
 #[tauri::command]
 fn toggle_overlay(app: AppHandle) -> Result<bool, String> {
-    ok_lib::toggle_overlay(app)
+    aywa_lib::toggle_overlay(app)
 }
 
 #[tauri::command]
-fn get_current_state(state: State<'_, AppStateManager>) -> ok_lib::state::AppStatePayload {
-    ok_lib::state::get_current_state(state)
+fn get_current_state(state: State<'_, AppStateManager>) -> aywa_lib::state::AppStatePayload {
+    aywa_lib::state::get_current_state(state)
 }
 
 #[tauri::command]
 fn list_models(app: AppHandle, state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
-    ok_lib::list_models(&app, state.inner())
+    aywa_lib::list_models(&app, state.inner())
 }
 
 #[tauri::command]
 fn open_diagnostics_log(app: AppHandle) -> Result<(), String> {
-    ok_lib::open_diagnostics_log(&app)
+    aywa_lib::open_diagnostics_log(&app)
 }
 
 #[tauri::command]
@@ -97,7 +96,7 @@ fn select_model(
     state: State<'_, ModelManagerState>,
     model_id: ModelId,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::select_model(&app, state.inner(), model_id)
+    aywa_lib::select_model(&app, state.inner(), model_id)
 }
 
 #[tauri::command]
@@ -106,7 +105,7 @@ fn download_model(
     state: State<'_, ModelManagerState>,
     model_id: ModelId,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::download_model(&app, state.inner(), model_id)
+    aywa_lib::download_model(&app, state.inner(), model_id)
 }
 
 #[tauri::command]
@@ -115,7 +114,7 @@ fn load_model(
     state: State<'_, ModelManagerState>,
     model_id: ModelId,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::load_model(&app, state.inner(), model_id)
+    aywa_lib::load_model(&app, state.inner(), model_id)
 }
 
 #[tauri::command]
@@ -123,12 +122,12 @@ fn unload_model(
     app: AppHandle,
     state: State<'_, ModelManagerState>,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::unload_model(&app, state.inner())
+    aywa_lib::unload_model(&app, state.inner())
 }
 
 #[tauri::command]
 fn get_model_status(app: AppHandle, state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
-    ok_lib::get_model_status(&app, state.inner())
+    aywa_lib::get_model_status(&app, state.inner())
 }
 
 #[tauri::command]
@@ -136,7 +135,7 @@ fn clear_model_cache(
     app: AppHandle,
     state: State<'_, ModelManagerState>,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::clear_model_cache(&app, state.inner())
+    aywa_lib::clear_model_cache(&app, state.inner())
 }
 
 #[tauri::command]
@@ -145,7 +144,7 @@ fn set_runtime_selection_mode(
     state: State<'_, ModelManagerState>,
     selection_mode: RuntimeSelectionMode,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::set_runtime_selection_mode(&app, state.inner(), selection_mode)
+    aywa_lib::set_runtime_selection_mode(&app, state.inner(), selection_mode)
 }
 
 #[tauri::command]
@@ -154,7 +153,7 @@ fn select_runtime_profile(
     state: State<'_, ModelManagerState>,
     profile_id: String,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::select_runtime_profile(&app, state.inner(), profile_id)
+    aywa_lib::select_runtime_profile(&app, state.inner(), profile_id)
 }
 
 #[tauri::command]
@@ -162,7 +161,7 @@ fn apply_runtime_profile_now(
     app: AppHandle,
     state: State<'_, ModelManagerState>,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::apply_runtime_profile_now(&app, state.inner())
+    aywa_lib::apply_runtime_profile_now(&app, state.inner())
 }
 
 #[tauri::command]
@@ -170,7 +169,7 @@ fn test_runtime_profile(
     app: AppHandle,
     state: State<'_, ModelManagerState>,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::test_runtime_profile(&app, state.inner())
+    aywa_lib::test_runtime_profile(&app, state.inner())
 }
 
 #[tauri::command]
@@ -178,7 +177,7 @@ fn redetect_runtime_profile(
     app: AppHandle,
     state: State<'_, ModelManagerState>,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::redetect_runtime_profile(&app, state.inner())
+    aywa_lib::redetect_runtime_profile(&app, state.inner())
 }
 
 #[tauri::command]
@@ -186,7 +185,7 @@ fn reset_runtime_profile_to_auto(
     app: AppHandle,
     state: State<'_, ModelManagerState>,
 ) -> Result<ModelManagerSnapshot, String> {
-    ok_lib::reset_runtime_profile_to_auto(&app, state.inner())
+    aywa_lib::reset_runtime_profile_to_auto(&app, state.inner())
 }
 
 fn main() {
@@ -195,30 +194,37 @@ fn main() {
         .manage(RuntimeHandles::default())
         .manage(ModelManagerState::default())
         .setup(|app| {
-            match ok_lib::diagnostics::init_for_app(&app.handle()) {
-                Ok(path) => ok_lib::diagnostics::log(format!(
+            match aywa_lib::diagnostics::init_for_app(&app.handle()) {
+                Ok(path) => aywa_lib::diagnostics::log(format!(
                     "[startup] production debug log path={}",
                     path.display()
                 )),
                 Err(error) => eprintln!("failed to initialize diagnostics log: {error}"),
             }
 
-            ok_lib::configure_windows(&app.handle())?;
+            aywa_lib::configure_windows(&app.handle())?;
             build_tray(&app.handle())?;
 
-            match ok_lib::hotkey::register(app.handle().clone()) {
+            match aywa_lib::hotkey::register(app.handle().clone()) {
                 Ok(handle) => {
                     let runtime_handles: State<'_, RuntimeHandles> = app.state();
-                    *runtime_handles.hotkey.lock().expect("hotkey mutex poisoned") = Some(handle);
+                    *runtime_handles
+                        .hotkey
+                        .lock()
+                        .expect("hotkey mutex poisoned") = Some(handle);
                 }
                 Err(error) => {
-                    ok_lib::diagnostics::log(format!("failed to register global hotkey: {error}"));
+                    aywa_lib::diagnostics::log(format!(
+                        "failed to register global hotkey: {error}"
+                    ));
                 }
             }
 
             let _ = app.state::<AppStateManager>().emit_current(&app.handle());
-            if let Err(error) = ok_lib::startup_model_manager(&app.handle()) {
-                ok_lib::diagnostics::log(format!("failed to reconcile model manager state: {error}"));
+            if let Err(error) = aywa_lib::startup_model_manager(&app.handle()) {
+                aywa_lib::diagnostics::log(format!(
+                    "failed to reconcile model manager state: {error}"
+                ));
             }
             Ok(())
         })

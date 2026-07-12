@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn registry_round_trips_on_disk() {
         let temp = std::env::temp_dir().join(format!(
-            "ok-model-manager-registry-test-{}-{}.json",
+            "aywa-model-manager-registry-test-{}-{}.json",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

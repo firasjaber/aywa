@@ -10,8 +10,8 @@ use tauri::Manager;
 pub const PYTHON_RUNTIME_VERSION: &str = "3.12.10-embed-amd64";
 pub const PYTHON_RUNTIME_ZIP_NAME: &str = "python-3.12.10-embed-amd64.zip";
 pub const GET_PIP_RESOURCE_NAME: &str = "get-pip.py";
-pub const PYTHON_RUNTIME_MARKER_FILE: &str = "ok-python-runtime.json";
-pub const PYTHON_RUNTIME_MODE_ENV: &str = "OK_PYTHON_RUNTIME";
+pub const PYTHON_RUNTIME_MARKER_FILE: &str = "aywa-python-runtime.json";
+pub const PYTHON_RUNTIME_MODE_ENV: &str = "AYWA_PYTHON_RUNTIME";
 pub const PYTHON_RUNTIME_MODE_MANAGED: &str = "managed";
 const PIP_BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
@@ -57,13 +57,16 @@ where
             progress("Checking configured Python override".to_string());
             if is_usable_python(&override_path) {
                 crate::diagnostics::log(format!(
-                    "[python-runtime] using OK_PYTHON_EXE override path={}",
+                    "[python-runtime] using AYWA_PYTHON_EXE override path={}",
                     override_path.display()
                 ));
                 return Ok(override_path);
             }
 
-            return Err(format!("OK_PYTHON_EXE is not usable: {}", override_path.display()));
+            return Err(format!(
+                "AYWA_PYTHON_EXE is not usable: {}",
+                override_path.display()
+            ));
         }
     }
 
@@ -85,7 +88,13 @@ where
             zip_path.display(),
             get_pip_path.display()
         ));
-        install_managed_runtime(&runtime_dir, &python_exe, &zip_path, &get_pip_path, &mut progress)?;
+        install_managed_runtime(
+            &runtime_dir,
+            &python_exe,
+            &zip_path,
+            &get_pip_path,
+            &mut progress,
+        )?;
         crate::diagnostics::log(format!(
             "[python-runtime] installed managed runtime python_exe={}",
             python_exe.display()
@@ -141,7 +150,7 @@ fn install_managed_runtime(
 }
 
 fn configured_python_override() -> Option<PathBuf> {
-    std::env::var_os("OK_PYTHON_EXE")
+    std::env::var_os("AYWA_PYTHON_EXE")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
 }
@@ -158,7 +167,9 @@ fn path_python() -> PathBuf {
     PathBuf::from("python")
 }
 
-fn python_resource_dirs<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<Vec<PathBuf>, String> {
+fn python_resource_dirs<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<Vec<PathBuf>, String> {
     let resource_dir = app
         .path()
         .resource_dir()
@@ -267,7 +278,10 @@ fn patch_embedded_python_pth(runtime_dir: &Path) -> Result<(), String> {
         .map_err(|error| error.to_string())?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
-        .find(|path| path.extension().is_some_and(|extension| extension == "_pth"))
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "_pth")
+        })
         .ok_or_else(|| "embedded Python ._pth file missing".to_string())?;
 
     let contents = fs::read_to_string(&pth_path).map_err(|error| error.to_string())?;
@@ -282,7 +296,13 @@ fn patch_embedded_python_pth(runtime_dir: &Path) -> Result<(), String> {
 fn enable_site_in_pth(contents: &str) -> String {
     contents
         .lines()
-        .map(|line| if line.trim() == "#import site" { "import site" } else { line })
+        .map(|line| {
+            if line.trim() == "#import site" {
+                "import site"
+            } else {
+                line
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n")
         + "\n"
@@ -367,7 +387,7 @@ mod tests {
 
     #[test]
     fn resource_dirs_include_tauri_bundle_layout() {
-        let resource_dir = Path::new("C:/Program Files/OK");
+        let resource_dir = Path::new("C:/Program Files/aywa");
         let dirs = python_resource_dirs_from_resource_dir(resource_dir);
 
         assert_eq!(dirs[0], resource_dir.join("resources").join("python"));

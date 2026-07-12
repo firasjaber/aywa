@@ -88,7 +88,7 @@ export const selectAppStatus = (
 			title: snapshot.loadedModelId
 				? `Preparing ${modelLabel(snapshot, snapshot.loadedModelId)}`
 				: 'Preparing transcription',
-			detail: 'OK is getting the local runtime ready.',
+			detail: 'Aywa is getting the local runtime ready.',
 			badge: null,
 			showHotkey: false
 		};

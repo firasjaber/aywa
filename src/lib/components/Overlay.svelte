@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head>
-	<title>OK Overlay</title>
+	<title>Aywa Overlay</title>
 </svelte:head>
 
 {#if $appState.message}

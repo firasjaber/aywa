@@ -1,4 +1,7 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use tauri::{AppHandle, Manager, Runtime};
 
@@ -45,7 +48,7 @@ mod tests {
     #[test]
     fn runtime_profile_state_round_trips_on_disk() {
         let temp = std::env::temp_dir().join(format!(
-            "ok-runtime-profile-state-test-{}-{}.json",
+            "aywa-runtime-profile-state-test-{}-{}.json",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

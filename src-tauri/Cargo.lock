@@ -134,6 +134,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "aywa"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "cpal",
+ "enigo",
+ "global-hotkey",
+ "hound",
+ "libloading 0.8.9",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tempfile",
+ "zip",
+]
+
+[[package]]
 name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2600,27 +2621,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ok"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arboard",
- "cpal",
- "enigo",
- "global-hotkey",
- "hound",
- "libloading 0.8.9",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tempfile",
- "zip",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4085,6 +4085,7 @@ dependencies = [
  "gtk",
  "heck 0.5.0",
  "http",
+ "image",
  "jni",
  "libc",
  "log",

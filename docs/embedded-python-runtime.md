@@ -1,6 +1,6 @@
 # Embedded Python Runtime
 
-The published Windows app ships the official CPython embeddable distribution as a Tauri resource. On first runtime bootstrap, the app extracts it into `%LOCALAPPDATA%/com.ok.speech/runtime/python`, enables `site` in the embedded `._pth` file, bootstraps `pip` with the bundled `get-pip.py`, then installs the selected runtime profile packages.
+The published Windows app ships the official CPython embeddable distribution as a Tauri resource. On first runtime bootstrap, the app extracts it into `%LOCALAPPDATA%/com.aywa.speech/runtime/python`, enables `site` in the embedded `._pth` file, bootstraps `pip` with the bundled `get-pip.py`, then installs the selected runtime profile packages.
 
 The app does not bundle `torch`, `torchaudio`, `nemo_toolkit`, CUDA wheels, or transcription models. Those are still installed or downloaded by the runtime profile and model manager flows.
 
@@ -26,27 +26,27 @@ Run the app in development while forcing the same managed runtime path used by p
 npm run tauri:dev:managed-python
 ```
 
-This sets `OK_PYTHON_RUNTIME=managed`, which disables `OK_PYTHON_EXE` and PATH fallback. If `src-tauri/resources/python` is missing, startup fails instead of silently using system Python.
+This sets `AYWA_PYTHON_RUNTIME=managed`, which disables `AYWA_PYTHON_EXE` and PATH fallback. If `src-tauri/resources/python` is missing, startup fails instead of silently using system Python.
 
 ## Developer Overrides
 
-Set `OK_PYTHON_EXE` to force a specific interpreter:
+Set `AYWA_PYTHON_EXE` to force a specific interpreter:
 
 ```powershell
-$env:OK_PYTHON_EXE = "C:\Python312\python.exe"
+$env:AYWA_PYTHON_EXE = "C:\Python312\python.exe"
 ```
 
 Unset it to use normal runtime resolution:
 
 ```powershell
-Remove-Item Env:OK_PYTHON_EXE
+Remove-Item Env:AYWA_PYTHON_EXE
 ```
 
-Do not set `OK_PYTHON_EXE` when running `npm run tauri:dev:managed-python`; managed mode intentionally ignores it.
+Do not set `AYWA_PYTHON_EXE` when running `npm run tauri:dev:managed-python`; managed mode intentionally ignores it.
 
 ## Refreshing The Managed Runtime
 
-Close the app, delete `%LOCALAPPDATA%/com.ok.speech/runtime/python`, and start the app again. The next bootstrap extracts a fresh copy from the bundled resource.
+Close the app, delete `%LOCALAPPDATA%/com.aywa.speech/runtime/python`, and start the app again. The next bootstrap extracts a fresh copy from the bundled resource.
 
 ## Verification
 

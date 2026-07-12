@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
-use ok_lib::model_manager::types::ModelId;
-use ok_lib::model_manager::{catalog, manifest, runtime, types::PreparedModel};
+use aywa_lib::model_manager::types::ModelId;
+use aywa_lib::model_manager::{catalog, manifest, runtime, types::PreparedModel};
 
 fn parse_model_id(value: &str) -> anyhow::Result<ModelId> {
     match value {

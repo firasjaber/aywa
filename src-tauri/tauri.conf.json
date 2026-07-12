@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "OK",
+  "productName": "Aywa",
   "version": "0.1.0",
-  "identifier": "com.ok.speech",
+  "identifier": "com.aywa.speech",
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Settings",
+        "title": "Aywa Settings",
         "url": "/",
         "width": 600,
         "height": 420,
@@ -25,7 +25,7 @@
       },
       {
         "label": "overlay",
-        "title": "Overlay",
+        "title": "Aywa Overlay",
         "url": "/overlay",
         "width": 240,
         "height": 64,
@@ -50,11 +50,9 @@
       "resources/python/*"
     ],
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "../static/logo/png/app-dark/aywa-dark-1024.png",
+      "../static/logo/desktop/macos/aywa.icns",
+      "../static/logo/desktop/windows/aywa.ico"
     ]
   }
 }
