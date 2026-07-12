@@ -16,9 +16,9 @@
         "title": "Settings",
         "url": "/",
         "width": 600,
-        "height": 640,
+        "height": 420,
         "minWidth": 520,
-        "minHeight": 560,
+        "minHeight": 460,
         "resizable": true,
         "fullscreen": false,
         "visible": false

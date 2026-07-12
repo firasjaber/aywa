@@ -595,7 +595,6 @@
 	.hotkey {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
 		gap: 0.75rem;
 		margin-top: 1rem;
 		border-radius: 0.5rem;
@@ -870,11 +869,6 @@
 			padding: 1rem;
 		}
 
-		.hotkey {
-			align-items: flex-start;
-			flex-direction: column;
-			gap: 0.5rem;
-		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
