@@ -166,10 +166,14 @@ trait SpeechBackend {
 
 1. UI + hotkey + fake text
 2. Audio recording
-3. Worker process
+3. Worker process [implemented]
 4. Model manager
-5. Real transcription
+5. Real transcription [implemented]
 6. Polish
+
+Worker/runtime note:
+- The app now uses a Rust-supervised private Python worker for model loading and WAV-path transcription.
+- Successful transcriptions are copied to the clipboard and the app attempts a Ctrl+V paste.
 
 ---
 
@@ -186,4 +190,3 @@ Press hotkey → speak → release → text appears in Notepad
 - Keep UI simple
 - Use state machine
 - Separate inference process
-
