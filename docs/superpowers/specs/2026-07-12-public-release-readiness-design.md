@@ -36,6 +36,22 @@ Create `docs/SETUP.md` with two clearly separated flows:
 
 CPU and NVIDIA/CUDA behavior must be described from the implementation and runtime manifests rather than assumed. Unknown release-distribution details should be identified honestly instead of filled with placeholders.
 
+### Non-technical user guide
+
+Create `docs/USER_GUIDE.md` as the primary walkthrough for people using Aywa rather than developing it. Use ordinary Windows language and cover the complete first-use path:
+
+- Downloading Aywa from GitHub Releases and installing it.
+- Opening Aywa and finding it again through the Windows system tray.
+- Understanding that the first launch can take several minutes while Aywa prepares its required transcription environment.
+- Downloading a speech model, activating it, and recognizing the ready state.
+- Starting and stopping transcription with the configured shortcut.
+- Finding the transcription on the clipboard and pasting it into another application, while matching any automatic text-insertion behavior found in the implementation.
+- Reopening Settings and exiting Aywa from the tray.
+
+Include a plain-language comparison of CPU and GPU modes. Explain that CPU mode is the broadly compatible fallback, while a supported NVIDIA CUDA mode can make transcription substantially faster, especially for larger models. Recommend a current NVIDIA driver for CUDA compatibility and performance without guaranteeing that every NVIDIA GPU is supported. Tell users to rely on the modes Aywa reports as available and link failed detection or activation to troubleshooting.
+
+Do not expose build commands or developer terminology in this guide. Use screenshots only if suitable current screenshots already exist; otherwise identify controls and status text precisely without visual placeholders.
+
 ### Troubleshooting guide
 
 Create `docs/TROUBLESHOOTING.md` organized by observable symptom. Cover startup and tray behavior, microphone capture, hotkey registration, text insertion and clipboard behavior, model downloads, managed Python provisioning, CPU/CUDA selection, and diagnostic-log access. Each entry should give likely causes, safe recovery steps, and the evidence users should collect if recovery fails.
