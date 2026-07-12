@@ -25,3 +25,7 @@ vite.config.ts.timestamp-*
 # Generated Python runtime bundle resources
 /src-tauri/resources/python/*.zip
 /src-tauri/resources/python/get-pip.py
+
+# Generated Python bytecode caches
+__pycache__/
+*.py[cod]
