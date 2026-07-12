@@ -15,6 +15,16 @@ impl ModelId {
             Self::ParakeetV03Multilingual => "parakeet-v0.3-multilingual",
         }
     }
+
+    pub fn from_registry_key(value: &str) -> Option<Self> {
+        match value {
+            "parakeet-v0.2-en" | "parakeet-v02-en" => Some(Self::ParakeetV02En),
+            "parakeet-v0.3-multilingual" | "parakeet-v03-multilingual" => {
+                Some(Self::ParakeetV03Multilingual)
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]

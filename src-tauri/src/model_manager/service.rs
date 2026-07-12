@@ -159,16 +159,13 @@ pub fn startup_reconcile<R: Runtime>(
 ) -> Result<ModelManagerSnapshot, String> {
     let path = registry_path(app).map_err(|error| error.to_string())?;
     let mut registry = registry::load(&path).map_err(|error| error.to_string())?;
-    let mut changed = false;
+    let mut changed = remove_missing_installed_models(&mut registry);
 
     if let Some(model_id) = registry.loaded_model_id {
         match registry.installed.get(model_id.as_str()) {
             Some(installed) => {
                 if let Err(error) = runtime::health_check(&installed.model_path) {
-                    registry.loaded_model_id = None;
-                    registry
-                        .model_errors
-                        .insert(model_id.as_str().to_string(), error.to_string());
+                    invalidate_installed_model(&mut registry, model_id, Some(error.to_string()));
                     changed = true;
                 } else {
                     registry.loaded_model_id = None;
@@ -419,9 +416,13 @@ pub fn load_model<R: Runtime>(
             .registry
             .lock()
             .map_err(|_| "model registry mutex poisoned".to_string())?;
-        registry
-            .model_errors
-            .insert(model_id.as_str().to_string(), error.clone());
+        if error == "installed model file is missing" {
+            invalidate_installed_model(&mut registry, model_id, Some(error.clone()));
+        } else {
+            registry
+                .model_errors
+                .insert(model_id.as_str().to_string(), error.clone());
+        }
         registry::save(&path, &registry).map_err(|save_error| save_error.to_string())?;
         drop(registry);
         let _ = emit_snapshot(app, state);
@@ -724,7 +725,7 @@ fn snapshot_from_registry(
                 model_id,
                 label: catalog::get(model_id).label,
                 status,
-                selected: registry.selected_model_id == model_id,
+                selected: registry.selected_model_id == model_id && status != ModelStatus::NotDownloaded,
                 error_message,
             }
         })
@@ -735,14 +736,64 @@ fn snapshot_from_registry(
     ModelManagerSnapshot {
         selected_model_id: registry.selected_model_id,
         loaded_model_id: registry.loaded_model_id,
-        ready_for_transcription: registry.loaded_model_id.is_some() && runtime_ready,
         operating_system: diagnostics::operating_system_label(),
+        ready_for_transcription: registry.loaded_model_id.is_some() && runtime_ready,
         runtime_preflight,
         worker_cuda_status,
         worker_runtime_bootstrap,
         runtime_profile,
         diagnostics_log_path,
         models,
+    }
+}
+
+fn remove_missing_installed_models(registry: &mut ModelRegistry) -> bool {
+    let missing = registry
+        .installed
+        .iter()
+        .filter_map(|(model_id, installed)| {
+            if installed.model_path.exists() {
+                None
+            } else {
+                Some(model_id.clone())
+            }
+        })
+        .collect::<Vec<_>>();
+
+    for model_id in &missing {
+        if let Some(model_id) = ModelId::from_registry_key(model_id) {
+            invalidate_installed_model(
+                registry,
+                model_id,
+                Some("installed model file is missing".to_string()),
+            );
+        } else {
+            registry.installed.remove(model_id);
+            registry.model_errors.remove(model_id);
+        }
+    }
+
+    !missing.is_empty()
+}
+
+fn invalidate_installed_model(
+    registry: &mut ModelRegistry,
+    model_id: ModelId,
+    error_message: Option<String>,
+) {
+    registry.installed.remove(model_id.as_str());
+    registry.model_errors.remove(model_id.as_str());
+
+    if registry.loaded_model_id == Some(model_id) {
+        registry.loaded_model_id = None;
+    }
+
+    if let Some(error_message) = error_message {
+        eprintln!(
+            "[model_manager] invalidated installed model model_id={} error={}",
+            model_id.as_str(),
+            error_message
+        );
     }
 }
 
@@ -759,7 +810,7 @@ mod tests {
     };
     use crate::runtime_profile::service::default_runtime_profile_snapshot;
 
-    use super::snapshot_from_registry;
+    use super::{remove_missing_installed_models, snapshot_from_registry};
 
     #[test]
     fn loading_a_new_model_replaces_the_old_one() {
@@ -815,5 +866,53 @@ mod tests {
 
         assert_eq!(row.status, ModelStatus::Downloaded);
         assert_eq!(row.error_message.as_deref(), Some("worker crashed"));
+    }
+
+    #[test]
+    fn missing_installed_model_is_marked_not_downloaded() {
+        let mut registry = ModelRegistry::default();
+        registry.installed.insert(
+            ModelId::ParakeetV02En.as_str().to_string(),
+            InstalledModel {
+                version: "sha256-test".to_string(),
+                sha256: "abc".to_string(),
+                model_path: std::path::PathBuf::from("C:/models/missing.nemo"),
+            },
+        );
+        registry.loaded_model_id = Some(ModelId::ParakeetV02En);
+        registry.model_errors.insert(
+            ModelId::ParakeetV02En.as_str().to_string(),
+            "installed model file is missing".to_string(),
+        );
+
+        assert!(remove_missing_installed_models(&mut registry));
+
+        let snapshot = snapshot_from_registry(
+            &registry,
+            &BTreeMap::new(),
+            WorkerCudaStatus {
+                cuda_available: false,
+                reason: Some("probe unavailable in unit test".to_string()),
+                gpu_name: None,
+                torch_version: None,
+                cuda_version: None,
+            },
+            WorkerRuntimeBootstrap {
+                status: WorkerRuntimeBootstrapStatus::Ready,
+                message: Some("ready".to_string()),
+            },
+            default_runtime_profile_snapshot(),
+            None,
+        );
+        let row = snapshot
+            .models
+            .iter()
+            .find(|row| row.model_id == ModelId::ParakeetV02En)
+            .unwrap();
+
+        assert_eq!(registry.loaded_model_id, None);
+        assert_eq!(row.status, ModelStatus::NotDownloaded);
+        assert!(!row.selected);
+        assert_eq!(row.error_message, None);
     }
 }
