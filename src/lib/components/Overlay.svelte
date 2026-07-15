@@ -36,16 +36,18 @@
 		height: 100%;
 		display: flex;
 		align-items: center;
-		justify-content: flex-end;
-		padding: 0.5rem;
+		justify-content: center;
+		box-sizing: border-box;
+		padding: 0.25rem;
 		pointer-events: none;
 	}
 
 	.pill {
 		display: inline-flex;
+		box-sizing: border-box;
 		align-items: center;
 		gap: 0.5rem;
-		min-width: 0;
+		width: 10rem;
 		padding: 0.55rem 0.7rem;
 		border: 1px solid rgba(244, 244, 240, 0.16);
 		border-radius: 0.6rem;
