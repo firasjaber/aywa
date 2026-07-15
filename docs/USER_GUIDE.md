@@ -59,6 +59,10 @@ Aywa copies the result to the Windows clipboard and then tries to paste it into 
 
 The small overlay shows whether Aywa is listening, transcribing, finished, or encountered a problem. For best results, speak clearly and avoid very short or silent recordings.
 
+## Privacy and diagnostics
+
+Aywa stores a temporary WAV only while it transcribes your speech locally, then deletes it. A recording left by an interrupted session is removed when Aywa next starts. In **Debug**, you can preview a safe issue report before copying it for support. The report excludes recordings, transcripts, file paths, usernames, command arguments, and raw subprocess output. Local diagnostics use one log per launch and retain at most 1 GB total, deleting the oldest sessions first.
+
 ## Open Settings again
 
 Click the Aywa icon in the Windows system tray, or right-click it and choose **Settings**. Use:

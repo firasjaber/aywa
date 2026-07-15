@@ -120,8 +120,7 @@ impl RecorderSession {
         let peak = sample_peak_i16(&mono_samples);
         let rms = sample_rms_i16(&mono_samples);
         eprintln!(
-            "[audio] stop path={} sample_rate={} duration_ms={} samples={} peak={} rms={}",
-            path.display(),
+            "[audio] stop sample_rate={} duration_ms={} samples={} peak={} rms={}",
             self.sample_rate,
             (mono_samples.len() as u64 * 1000) / self.sample_rate as u64,
             mono_samples.len(),
@@ -131,9 +130,9 @@ impl RecorderSession {
         write_wav_file(&path, self.sample_rate, &mono_samples)?;
 
         if peak == 0 {
+            let _ = std::fs::remove_file(&path);
             return Err(format!(
-                "Recording contains silence. Check your default microphone/input device. Saved file: {}",
-                path.display()
+                "Recording contains silence. Check your default microphone/input device."
             ));
         }
 
@@ -306,5 +305,12 @@ mod tests {
         assert_eq!(sample_rms_i16(&[]), 0);
         assert_eq!(sample_rms_i16(&[0, 0, 0]), 0);
         assert!(sample_rms_i16(&[1000, -1000]) > 0);
+    }
+
+    #[test]
+    fn silence_error_does_not_disclose_a_recording_path() {
+        let error = "Recording contains silence. Check your default microphone/input device.";
+        assert!(!error.contains("recording-"));
+        assert!(!error.contains(":\\"));
     }
 }

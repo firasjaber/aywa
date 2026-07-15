@@ -99,6 +99,10 @@ export type ModelManagerSnapshot = {
 	models: ModelRow[];
 };
 
+export type IssueReport = {
+	preview: string;
+};
+
 const initialState: ModelManagerSnapshot = {
 	selectedModelId: 'parakeet-v0.2-en',
 	loadedModelId: null,
@@ -155,6 +159,7 @@ export const modelManager = readable<ModelManagerSnapshot>(initialState, (set) =
 
 export const selectModel = (modelId: ModelId) => invoke('select_model', { modelId });
 export const openDiagnosticsLog = () => invoke<void>('open_diagnostics_log');
+export const previewIssueReport = () => invoke<IssueReport>('preview_issue_report');
 export const downloadModel = (modelId: ModelId) => invoke('download_model', { modelId });
 export const loadModel = (modelId: ModelId) => invoke('load_model', { modelId });
 export const unloadModel = () => invoke('unload_model');

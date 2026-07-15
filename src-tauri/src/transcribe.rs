@@ -238,10 +238,7 @@ where
         None,
     );
     if python_command_succeeds(python_exe, &["-m", "pip", "--version"]) {
-        crate::diagnostics::log(format!(
-            "[transcribe] pip is already available python_exe={}",
-            python_exe.display()
-        ));
+        crate::diagnostics::log("[transcribe] pip is already available");
         return Ok(());
     }
 
@@ -622,13 +619,7 @@ pub fn ensure_loaded<R: Runtime>(
     }
 
     let worker_script = worker_entrypoint(&root);
-    eprintln!(
-        "[transcribe] ensure_loaded model_id={} python_exe={} worker_script={} model_path={}",
-        model_id.as_str(),
-        python_exe.display(),
-        worker_script.display(),
-        model_path.display()
-    );
+    eprintln!("[transcribe] ensure_loaded model_id={}", model_id.as_str());
     let handle = spawn_worker(&python_exe, &worker_script, model_id, model_path)?;
     let ready_device = match handle.wait_for_ready_device(WORKER_START_TIMEOUT) {
         Ok(device) => device,
@@ -661,11 +652,7 @@ pub fn transcribe_file<R: Runtime>(
         .map_err(|_| "transcription mutex poisoned".to_string())?;
 
     let request_id = build_request_id();
-    eprintln!(
-        "[transcribe] start request_id={} audio_path={}",
-        request_id,
-        audio_path.display()
-    );
+    eprintln!("[transcribe] start request_id={request_id}");
     let outcome = {
         let worker = slot
             .as_mut()

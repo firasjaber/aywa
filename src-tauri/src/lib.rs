@@ -5,6 +5,7 @@ pub mod hotkey;
 pub mod model_manager;
 pub mod overlay;
 pub mod python_runtime;
+pub mod recordings;
 pub mod runtime_profile;
 pub mod state;
 pub mod transcribe;
@@ -135,11 +136,10 @@ pub fn stop_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let output_dir = recordings_dir(app)?;
     match session.stop(&output_dir) {
         Ok(result) => {
-            println!(
-                "saved recording to {} (sample_rate={}, sample_count={})",
-                result.path.display(),
-                result.sample_rate,
-                result.sample_count
+            let _temporary_recording = recordings::TemporaryRecording::new(result.path.clone());
+            eprintln!(
+                "[recording] captured sample_rate={} sample_count={}",
+                result.sample_rate, result.sample_count
             );
 
             transition_to(app, AppState::Processing, None)?;
@@ -171,6 +171,14 @@ pub fn stop_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
             Err(error)
         }
     }
+}
+
+pub fn cleanup_recordings_on_startup<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let removed = recordings::cleanup_abandoned_recordings(&recordings_dir(app)?)?;
+    if removed > 0 {
+        diagnostics::log(format!("[recordings] removed_abandoned count={removed}"));
+    }
+    Ok(())
 }
 
 fn schedule_reset<R: Runtime>(app: AppHandle<R>, delay_ms: u64) {
@@ -228,6 +236,20 @@ pub fn list_models<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) ->
 
 pub fn open_diagnostics_log<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     diagnostics::open_log_in_file_manager(app)
+}
+
+pub fn preview_issue_report<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> diagnostics::IssueReport {
+    let snapshot = list_models(app, state);
+    diagnostics::build_issue_report(diagnostics::IssueReportInput {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        operating_system: snapshot.operating_system,
+        selected_model_id: snapshot.selected_model_id.as_str().to_string(),
+        loaded_model_id: snapshot.loaded_model_id.map(|model_id| model_id.as_str().to_string()),
+        execution_device: snapshot.live_execution_device,
+    })
 }
 
 pub fn select_model<R: Runtime>(

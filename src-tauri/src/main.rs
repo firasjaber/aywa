@@ -91,6 +91,14 @@ fn open_diagnostics_log(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn preview_issue_report(
+    app: AppHandle,
+    state: State<'_, ModelManagerState>,
+) -> aywa_lib::diagnostics::IssueReport {
+    aywa_lib::preview_issue_report(&app, state.inner())
+}
+
+#[tauri::command]
 fn select_model(
     app: AppHandle,
     state: State<'_, ModelManagerState>,
@@ -195,11 +203,14 @@ fn main() {
         .manage(ModelManagerState::default())
         .setup(|app| {
             match aywa_lib::diagnostics::init_for_app(&app.handle()) {
-                Ok(path) => aywa_lib::diagnostics::log(format!(
-                    "[startup] production debug log path={}",
-                    path.display()
-                )),
+                Ok(_) => aywa_lib::diagnostics::log("[startup] diagnostics initialized"),
                 Err(error) => eprintln!("failed to initialize diagnostics log: {error}"),
+            }
+
+            if let Err(error) = aywa_lib::cleanup_recordings_on_startup(&app.handle()) {
+                aywa_lib::diagnostics::log(format!(
+                    "[recordings] startup cleanup failed: {error}"
+                ));
             }
 
             aywa_lib::configure_windows(&app.handle())?;
@@ -236,6 +247,7 @@ fn main() {
             toggle_overlay,
             list_models,
             open_diagnostics_log,
+            preview_issue_report,
             select_model,
             download_model,
             load_model,

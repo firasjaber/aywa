@@ -87,10 +87,10 @@ CPU fallback remains usable, but it is slower.
 - Shorter recordings finish sooner. CPU transcription of large or long inputs can be noticeably slower.
 - The first transcription after activation may be slower while the model warms up.
 
-## Open log does not work
+## Open local log does not work
 
-The **Open log** action currently uses Windows Explorer.
+The **Open local log** action currently uses Windows Explorer.
 
-- Confirm Aywa has completed startup so `aywa-debug.log` exists.
-- Restart Aywa and try **Debug > Open log** again.
+- Confirm Aywa has completed startup so its current session log exists.
+- Restart Aywa and try **Debug > Open local log** again.
 - If Explorer still does not open, mention that the log is unavailable when filing the issue; the bug form does not require an attachment.
