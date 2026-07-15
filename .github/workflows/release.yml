@@ -42,7 +42,7 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml --locked
           python -m pytest src-tauri/python/tests -v
       - name: Build Windows installer
-        run: npm run tauri -- build --bundles nsis
+        run: npx.cmd --no-install tauri build --bundles nsis
       - name: Create checksums and smoke-install the unsigned installer
         shell: pwsh
         run: |
