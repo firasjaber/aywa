@@ -7,6 +7,17 @@
 	"overlay"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://github.com/firasjaber/aywa/blob/main/docs/TROUBLESHOOTING.md#cuda-is-not-available"
+        },
+        {
+          "url": "https://github.com/firasjaber/aywa/blob/main/docs/USER_GUIDE.md"
+        }
+      ]
+    }
   ]
 }
