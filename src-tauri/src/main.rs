@@ -198,6 +198,7 @@ fn reset_runtime_profile_to_auto(
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .manage(AppStateManager::default())
         .manage(RuntimeHandles::default())
         .manage(ModelManagerState::default())
