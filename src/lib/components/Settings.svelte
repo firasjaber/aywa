@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { openUrl } from '@tauri-apps/plugin-opener';
 	import {
 		downloadModel,
 		loadModel,
@@ -16,6 +17,10 @@
 		valueOrFallback,
 		type SettingsTab
 	} from './settingsView';
+
+	const cudaTroubleshootingUrl =
+		'https://github.com/firasjaber/aywa/blob/main/docs/TROUBLESHOOTING.md#cuda-is-not-available';
+	const userGuideUrl = 'https://github.com/firasjaber/aywa/blob/main/docs/USER_GUIDE.md';
 
 	let activeTab = $state<SettingsTab>('app');
 	let actionError = $state<string | null>(null);
@@ -90,6 +95,15 @@
 		actionError = null;
 		try {
 			await openDiagnosticsLog();
+		} catch (error) {
+			actionError = errorText(error);
+		}
+	};
+
+	const openHelp = async (url: string) => {
+		actionError = null;
+		try {
+			await openUrl(url);
 		} catch (error) {
 			actionError = errorText(error);
 		}
@@ -220,7 +234,12 @@
 								<h1>{appStatus.title}</h1>
 								<p>{appStatus.detail}</p>
 								{#if appStatus.tone === 'warning'}
-									<a href="#cuda-setup" onclick={(event) => event.preventDefault()}
+									<a
+										href={cudaTroubleshootingUrl}
+										onclick={(event) => {
+											event.preventDefault();
+											openHelp(cudaTroubleshootingUrl);
+										}}
 										>Read the CUDA setup guide →</a
 									>
 								{:else if appStatus.tone === 'error'}
@@ -305,7 +324,13 @@
 					</p>
 				{/if}
 
-				<a class="help-link" href="#setup" onclick={(event) => event.preventDefault()}
+				<a
+					class="help-link"
+					href={userGuideUrl}
+					onclick={(event) => {
+						event.preventDefault();
+						openHelp(userGuideUrl);
+					}}
 					>Need help setting up Aywa?</a
 				>
 			</div>
