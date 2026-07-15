@@ -24,6 +24,10 @@ jobs:
           cache: npm
       - name: Install frontend dependencies
         run: npm ci
+      - name: Install Python test dependency
+        run: python -m pip install --disable-pip-version-check --requirement src-tauri/python/requirements-test.txt
+      - name: Prepare embedded Python resources
+        run: npm run prepare:python-runtime
       - name: Verify release tag
         shell: pwsh
         run: |
@@ -37,8 +41,6 @@ jobs:
           npm run build
           cargo test --manifest-path src-tauri/Cargo.toml --locked
           python -m pytest src-tauri/python/tests -v
-      - name: Prepare embedded Python resources
-        run: npm run prepare:python-runtime
       - name: Build Windows installer
         run: npm run tauri -- build --bundles nsis
       - name: Create checksums and smoke-install the unsigned installer

@@ -10,6 +10,9 @@ Windows release workflow. Installers are currently unsigned.
 - Run `npm.cmd run verify:release-policy`, `npm.cmd run check`, `npm.cmd run build`,
   `cargo test --manifest-path src-tauri/Cargo.toml --locked`, and
   `python -m pytest src-tauri/python/tests -v`.
+- GitHub does not run checks for ordinary branch pushes or pull requests. Run
+  the local checks before tagging; the heavyweight GitHub validation runs only
+  after the release tag is pushed.
 - Confirm release notes describe user-visible changes and known limitations.
 - Remember that the installer will be unsigned; do not describe it as signed
   or claim a verified publisher identity.
