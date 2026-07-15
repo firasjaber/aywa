@@ -6,11 +6,15 @@ use crate::runtime_profile::types::RuntimeMachineFacts;
 
 pub fn parse_nvidia_smi_line(line: &str) -> RuntimeMachineFacts {
     let mut parts = line.split(',').map(str::trim);
-    let gpu_name = parts.next().filter(|value| !value.is_empty()).map(str::to_string);
-    let driver_version = parts.next().filter(|value| !value.is_empty()).map(str::to_string);
-    let compute_capability = parts
+    let gpu_name = parts
         .next()
-        .and_then(parse_compute_capability);
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let driver_version = parts
+        .next()
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let compute_capability = parts.next().and_then(parse_compute_capability);
 
     RuntimeMachineFacts {
         gpu_vendor: Some("nvidia".to_string()),

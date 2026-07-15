@@ -60,7 +60,9 @@ fn profile_matches(
 ) -> Result<String, String> {
     if profile.vendor.as_deref() != facts.gpu_vendor.as_deref() {
         return Err(match (&profile.vendor, &facts.gpu_vendor) {
-            (Some(expected), Some(actual)) => format!("vendor mismatch expected={expected} actual={actual}"),
+            (Some(expected), Some(actual)) => {
+                format!("vendor mismatch expected={expected} actual={actual}")
+            }
             (Some(expected), None) => format!("vendor mismatch expected={expected} actual=unknown"),
             _ => "vendor mismatch".to_string(),
         });
@@ -73,13 +75,17 @@ fn profile_matches(
 
         if let Some(min) = range.min {
             if capability < min {
-                return Err(format!("capability too low capability={capability} min={min}"));
+                return Err(format!(
+                    "capability too low capability={capability} min={min}"
+                ));
             }
         }
 
         if let Some(max) = range.max {
             if capability > max {
-                return Err(format!("capability too high capability={capability} max={max}"));
+                return Err(format!(
+                    "capability too high capability={capability} max={max}"
+                ));
             }
         }
     }
@@ -172,6 +178,8 @@ mod tests {
         let (selected, skipped) = rank_auto_candidates(&manifest, &facts);
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].profile_id, "cpu");
-        assert!(skipped.iter().any(|profile| profile.reason.contains("vendor mismatch")));
+        assert!(skipped
+            .iter()
+            .any(|profile| profile.reason.contains("vendor mismatch")));
     }
 }

@@ -86,7 +86,7 @@ impl AppStateManager {
                 message: message.or_else(|| next.default_message(None)),
             },
         )
-            .map_err(|error| error.to_string())?;
+        .map_err(|error| error.to_string())?;
 
         Ok(true)
     }

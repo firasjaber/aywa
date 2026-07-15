@@ -35,7 +35,10 @@ pub fn hide_overlay<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-pub fn sync_visibility_for_state<R: Runtime>(app: &AppHandle<R>, state: AppState) -> tauri::Result<()> {
+pub fn sync_visibility_for_state<R: Runtime>(
+    app: &AppHandle<R>,
+    state: AppState,
+) -> tauri::Result<()> {
     match state {
         AppState::Ready => hide_overlay(app),
         AppState::Listening | AppState::Processing | AppState::Completed | AppState::Error => {

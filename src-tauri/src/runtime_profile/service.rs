@@ -4,14 +4,11 @@ use tauri::{AppHandle, Runtime};
 
 use crate::{
     app_data_dir,
-    model_manager::{
-        types::{WorkerCudaStatus, WorkerRuntimeBootstrap, WorkerRuntimeBootstrapStatus},
+    model_manager::types::{
+        WorkerCudaStatus, WorkerRuntimeBootstrap, WorkerRuntimeBootstrapStatus,
     },
     runtime_profile::{
-        catalog,
-        detect,
-        resolve,
-        smoke_test,
+        catalog, detect, resolve, smoke_test,
         state::{load_state, runtime_profile_state_path_at_root, save_state},
         types::{
             RuntimeMachineFacts, RuntimeProfileCatalogEntry, RuntimeProfileCatalogOption,
@@ -37,7 +34,8 @@ pub fn load_runtime_profile_snapshot<R: Runtime>(
     bootstrap: &WorkerRuntimeBootstrap,
 ) -> Result<RuntimeProfileSnapshot, String> {
     let root = app_data_dir(app)?;
-    let state = load_state(&runtime_profile_state_path_at_root(&root)).map_err(|error| error.to_string())?;
+    let state = load_state(&runtime_profile_state_path_at_root(&root))
+        .map_err(|error| error.to_string())?;
     let manifest = catalog::load_manifest().map_err(|error| error.to_string())?;
 
     Ok(RuntimeProfileSnapshot {
@@ -63,7 +61,10 @@ pub fn load_runtime_profile_snapshot<R: Runtime>(
     })
 }
 
-pub fn prepare_worker_runtime<R, F>(app: &AppHandle<R>, progress: F) -> Result<WorkerCudaStatus, String>
+pub fn prepare_worker_runtime<R, F>(
+    app: &AppHandle<R>,
+    progress: F,
+) -> Result<WorkerCudaStatus, String>
 where
     R: Runtime,
     F: FnMut(WorkerRuntimeBootstrapStatus, Option<String>, Option<WorkerCudaStatus>),
@@ -90,10 +91,12 @@ pub fn set_selection_mode<R: Runtime>(
     state.selection_mode = mode;
     state.last_error = None;
     if mode == RuntimeSelectionMode::Manual && state.selected_profile_id.is_none() {
-        state.selected_profile_id = state
-            .active_profile_id
-            .clone()
-            .or_else(|| manifest.profiles.first().map(|profile| profile.profile_id.clone()));
+        state.selected_profile_id = state.active_profile_id.clone().or_else(|| {
+            manifest
+                .profiles
+                .first()
+                .map(|profile| profile.profile_id.clone())
+        });
     }
     if mode == RuntimeSelectionMode::Auto {
         state.selected_profile_id = None;
@@ -104,7 +107,11 @@ pub fn set_selection_mode<R: Runtime>(
 pub fn select_profile<R: Runtime>(app: &AppHandle<R>, profile_id: &str) -> Result<(), String> {
     let root = app_data_dir(app)?;
     let manifest = catalog::load_manifest().map_err(|error| error.to_string())?;
-    if !manifest.profiles.iter().any(|profile| profile.profile_id == profile_id) {
+    if !manifest
+        .profiles
+        .iter()
+        .any(|profile| profile.profile_id == profile_id)
+    {
         return Err(format!("unknown runtime profile: {profile_id}"));
     }
     let path = runtime_profile_state_path_at_root(&root);
@@ -136,7 +143,10 @@ pub fn reset_to_auto<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     save_state(&path, &state).map_err(|error| error.to_string())
 }
 
-pub fn record_worker_execution_device<R: Runtime>(app: &AppHandle<R>, device: &str) -> Result<(), String> {
+pub fn record_worker_execution_device<R: Runtime>(
+    app: &AppHandle<R>,
+    device: &str,
+) -> Result<(), String> {
     let root = app_data_dir(app)?;
     let path = runtime_profile_state_path_at_root(&root);
     let mut state = load_state(&path).map_err(|error| error.to_string())?;
@@ -159,14 +169,17 @@ where
         None,
     );
     transcribe::bootstrap_runtime(app_data_root)?;
-    let python_exe =
-        crate::python_runtime::ensure_python_runtime_with_progress(app, app_data_root, |message| {
+    let python_exe = crate::python_runtime::ensure_python_runtime_with_progress(
+        app,
+        app_data_root,
+        |message| {
             progress(
                 WorkerRuntimeBootstrapStatus::InstallingPythonRuntime,
                 Some(message),
                 None,
             );
-        })?;
+        },
+    )?;
     prepare_worker_runtime_with_python_at_root(app_data_root, python_exe, progress)
 }
 
@@ -195,7 +208,8 @@ where
     eprintln!(
         "[runtime-profile] detect gpu_name={} capability={} driver={} vendor={} error={}",
         facts.gpu_name.as_deref().unwrap_or("unknown"),
-        facts.compute_capability
+        facts
+            .compute_capability
             .map(|value| value.to_string())
             .unwrap_or_else(|| "unknown".to_string()),
         facts.driver_version.as_deref().unwrap_or("unknown"),
@@ -214,15 +228,21 @@ where
 
     save_state(&state_path, &state).map_err(|error| error.to_string())?;
 
-    if let Some(active_profile_id) = attempts.first().map(|attempt| attempt.profile.profile_id.as_str()) {
+    if let Some(active_profile_id) = attempts
+        .first()
+        .map(|attempt| attempt.profile.profile_id.as_str())
+    {
         if profile_is_current(&state, &manifest_version, active_profile_id, &current_probe) {
             eprintln!(
                 "[runtime-profile] activate success profile_id={} device={}",
                 active_profile_id,
-                state
-                    .actual_execution_device
-                    .as_deref()
-                    .unwrap_or(if current_probe.cuda_available { "gpu" } else { "cpu_fallback" })
+                state.actual_execution_device.as_deref().unwrap_or(
+                    if current_probe.cuda_available {
+                        "gpu"
+                    } else {
+                        "cpu_fallback"
+                    }
+                )
             );
             return Ok(PreparedWorkerRuntime {
                 python_exe,
@@ -249,11 +269,16 @@ where
             } else {
                 WorkerRuntimeBootstrapStatus::InstallingCudaTorch
             },
-            Some(format!("Installing runtime profile {}", attempt.profile.label)),
+            Some(format!(
+                "Installing runtime profile {}",
+                attempt.profile.label
+            )),
             None,
         );
 
-        if let Err(error) = transcribe::install_runtime_profile_packages(&python_exe, &attempt.profile) {
+        if let Err(error) =
+            transcribe::install_runtime_profile_packages(&python_exe, &attempt.profile)
+        {
             eprintln!(
                 "[runtime-profile] install failed profile_id={} error={error}",
                 attempt.profile.profile_id
@@ -278,7 +303,8 @@ where
             Some("Installing Python worker dependencies".to_string()),
             None,
         );
-        if let Err(error) = transcribe::install_worker_requirements(&python_exe, &requirements_path) {
+        if let Err(error) = transcribe::install_worker_requirements(&python_exe, &requirements_path)
+        {
             eprintln!(
                 "[runtime-profile] install failed profile_id={} error={error}",
                 attempt.profile.profile_id
@@ -300,7 +326,10 @@ where
 
         progress(
             WorkerRuntimeBootstrapStatus::SmokeTesting,
-            Some(format!("Smoke testing runtime profile {}", attempt.profile.label)),
+            Some(format!(
+                "Smoke testing runtime profile {}",
+                attempt.profile.label
+            )),
             None,
         );
         eprintln!(
@@ -409,10 +438,9 @@ fn resolve_attempts(
 ) -> Result<Vec<RuntimeProfileAttempt>, String> {
     match state.selection_mode {
         RuntimeSelectionMode::Manual => {
-            let profile_id = state
-                .selected_profile_id
-                .as_deref()
-                .ok_or_else(|| "manual runtime profile mode requires a selected profile".to_string())?;
+            let profile_id = state.selected_profile_id.as_deref().ok_or_else(|| {
+                "manual runtime profile mode requires a selected profile".to_string()
+            })?;
             eprintln!("[runtime-profile] manual apply profile_id={profile_id}");
             let profile = manifest
                 .profiles
@@ -433,7 +461,8 @@ fn resolve_attempts(
                     skipped_profile.profile_id, skipped_profile.reason
                 );
             }
-            state.resolved_auto_profile_id = ranked.first().map(|profile| profile.profile_id.clone());
+            state.resolved_auto_profile_id =
+                ranked.first().map(|profile| profile.profile_id.clone());
             ranked
                 .into_iter()
                 .map(|resolved| {

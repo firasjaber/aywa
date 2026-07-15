@@ -1,10 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::PathBuf,
-    sync::Mutex,
-    thread,
-};
+use std::{collections::BTreeMap, fs, path::PathBuf, sync::Mutex, thread};
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
@@ -101,12 +95,11 @@ impl ModelManagerState {
             .lock()
             .expect("live execution device mutex poisoned")
             .clone();
-        let runtime_profile = runtime_profile::service::load_runtime_profile_snapshot(
-            app,
-            &worker_runtime_bootstrap,
-        )
-        .unwrap_or_else(|_| runtime_profile::service::default_runtime_profile_snapshot());
-        let diagnostics_log_path = diagnostics::log_path_for_app(app).map(|path| path.display().to_string());
+        let runtime_profile =
+            runtime_profile::service::load_runtime_profile_snapshot(app, &worker_runtime_bootstrap)
+                .unwrap_or_else(|_| runtime_profile::service::default_runtime_profile_snapshot());
+        let diagnostics_log_path =
+            diagnostics::log_path_for_app(app).map(|path| path.display().to_string());
         snapshot_from_registry(
             &registry,
             &transient_statuses,
@@ -142,7 +135,11 @@ pub fn models_root<R: Runtime>(app: &AppHandle<R>) -> anyhow::Result<PathBuf> {
 }
 
 pub fn cache_root<R: Runtime>(app: &AppHandle<R>) -> anyhow::Result<PathBuf> {
-    Ok(app.path().app_local_data_dir()?.join("cache").join("downloads"))
+    Ok(app
+        .path()
+        .app_local_data_dir()?
+        .join("cache")
+        .join("downloads"))
 }
 
 pub fn prepare_model(installed: &InstalledModel, model_id: ModelId) -> PreparedModel {
@@ -154,11 +151,17 @@ pub fn prepare_model(installed: &InstalledModel, model_id: ModelId) -> PreparedM
     }
 }
 
-pub fn list_models<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) -> ModelManagerSnapshot {
+pub fn list_models<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> ModelManagerSnapshot {
     state.snapshot(app)
 }
 
-pub fn get_model_status<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) -> ModelManagerSnapshot {
+pub fn get_model_status<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> ModelManagerSnapshot {
     state.snapshot(app)
 }
 
@@ -272,7 +275,9 @@ pub fn download_model<R: Runtime>(
             );
             let cached_file = download::download_to_cache(&client, &asset, &cache_dir)?;
 
-            let install_dir = models_root(&app)?.join(model_id.as_str()).join(&asset.version);
+            let install_dir = models_root(&app)?
+                .join(model_id.as_str())
+                .join(&asset.version);
             eprintln!(
                 "[model_manager] promoting verified model model_id={} cached_file={} install_dir={}",
                 model_id.as_str(),
@@ -311,7 +316,10 @@ pub fn download_model<R: Runtime>(
             }
         };
 
-        let mut registry = state.registry.lock().expect("model registry mutex poisoned");
+        let mut registry = state
+            .registry
+            .lock()
+            .expect("model registry mutex poisoned");
         let mut transient_statuses = state
             .transient_statuses
             .lock()
@@ -389,7 +397,10 @@ pub fn load_model<R: Runtime>(
         WorkerRuntimeBootstrapStatus::Ready => {}
         WorkerRuntimeBootstrapStatus::Idle => {
             schedule_runtime_bootstrap(app, state)?;
-            return Err("Transcription runtime is still being prepared. Check Settings for progress.".to_string());
+            return Err(
+                "Transcription runtime is still being prepared. Check Settings for progress."
+                    .to_string(),
+            );
         }
         WorkerRuntimeBootstrapStatus::Error => {
             let bootstrap = state
@@ -397,14 +408,15 @@ pub fn load_model<R: Runtime>(
                 .lock()
                 .map_err(|_| "worker bootstrap mutex poisoned".to_string())?
                 .clone();
-            return Err(
-                bootstrap
-                    .message
-                    .unwrap_or_else(|| "Transcription runtime setup failed. Check Settings for details.".to_string()),
-            );
+            return Err(bootstrap.message.unwrap_or_else(|| {
+                "Transcription runtime setup failed. Check Settings for details.".to_string()
+            }));
         }
         _ => {
-            return Err("Transcription runtime is still being prepared. Check Settings for progress.".to_string());
+            return Err(
+                "Transcription runtime is still being prepared. Check Settings for progress."
+                    .to_string(),
+            );
         }
     }
 
@@ -661,7 +673,9 @@ pub fn reset_runtime_profile_to_auto<R: Runtime>(
     emit_snapshot(app, state)
 }
 
-fn current_bootstrap_status(state: &ModelManagerState) -> Result<WorkerRuntimeBootstrapStatus, String> {
+fn current_bootstrap_status(
+    state: &ModelManagerState,
+) -> Result<WorkerRuntimeBootstrapStatus, String> {
     state
         .worker_runtime_bootstrap
         .lock()
@@ -706,27 +720,28 @@ fn schedule_runtime_bootstrap<R: Runtime>(
     thread::spawn(move || {
         diagnostics::log("[model_manager] runtime bootstrap thread started");
         let state = app.state::<ModelManagerState>();
-        let emit_progress = |status: WorkerRuntimeBootstrapStatus,
-                             message: Option<String>,
-                             worker_cuda_status: Option<WorkerCudaStatus>| {
-            diagnostics::log(format!(
-                "[model_manager] runtime bootstrap progress status={:?} message={}",
-                status,
-                message.as_deref().unwrap_or("")
-            ));
-            if let Ok(mut bootstrap) = state.worker_runtime_bootstrap.lock() {
-                bootstrap.status = status;
-                bootstrap.message = message;
-            }
-
-            if let Some(worker_cuda_status) = worker_cuda_status {
-                if let Ok(mut current) = state.worker_cuda_status.lock() {
-                    *current = worker_cuda_status;
+        let emit_progress =
+            |status: WorkerRuntimeBootstrapStatus,
+             message: Option<String>,
+             worker_cuda_status: Option<WorkerCudaStatus>| {
+                diagnostics::log(format!(
+                    "[model_manager] runtime bootstrap progress status={:?} message={}",
+                    status,
+                    message.as_deref().unwrap_or("")
+                ));
+                if let Ok(mut bootstrap) = state.worker_runtime_bootstrap.lock() {
+                    bootstrap.status = status;
+                    bootstrap.message = message;
                 }
-            }
 
-            let _ = emit_snapshot(&app, state.inner());
-        };
+                if let Some(worker_cuda_status) = worker_cuda_status {
+                    if let Ok(mut current) = state.worker_cuda_status.lock() {
+                        *current = worker_cuda_status;
+                    }
+                }
+
+                let _ = emit_snapshot(&app, state.inner());
+            };
 
         match transcribe::prepare_worker_runtime(&app, emit_progress) {
             Ok(worker_cuda_status) => {
@@ -742,7 +757,9 @@ fn schedule_runtime_bootstrap<R: Runtime>(
                 );
             }
             Err(error) => {
-                diagnostics::log(format!("[model_manager] runtime bootstrap failed error={error}"));
+                diagnostics::log(format!(
+                    "[model_manager] runtime bootstrap failed error={error}"
+                ));
                 emit_progress(
                     WorkerRuntimeBootstrapStatus::Error,
                     Some(error.clone()),
@@ -803,7 +820,8 @@ fn snapshot_from_registry(
                 model_id,
                 label: catalog::get(model_id).label,
                 status,
-                selected: registry.selected_model_id == model_id && status != ModelStatus::NotDownloaded,
+                selected: registry.selected_model_id == model_id
+                    && status != ModelStatus::NotDownloaded,
                 error_message,
             }
         })

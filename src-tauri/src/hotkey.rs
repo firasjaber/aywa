@@ -18,7 +18,9 @@ pub fn register<R: Runtime>(app: AppHandle<R>) -> Result<HotkeyHandle, String> {
     let hotkey = HotKey::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
     let manager = GlobalHotKeyManager::new().map_err(|error| error.to_string())?;
 
-    manager.register(hotkey).map_err(|error| error.to_string())?;
+    manager
+        .register(hotkey)
+        .map_err(|error| error.to_string())?;
 
     let app_for_events = app.clone();
 

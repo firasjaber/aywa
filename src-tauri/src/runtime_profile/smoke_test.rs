@@ -1,4 +1,8 @@
-use std::{path::Path, process::Command, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    path::Path,
+    process::Command,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use serde::Deserialize;
 

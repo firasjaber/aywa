@@ -40,7 +40,10 @@ pub fn build_pip_install_args(profile: &RuntimeProfileCatalogEntry) -> Vec<Strin
 mod tests {
     use std::sync::atomic::AtomicBool;
 
-    use crate::runtime_profile::{catalog::load_manifest, provision::{build_pip_install_args, try_start_runtime_operation}};
+    use crate::runtime_profile::{
+        catalog::load_manifest,
+        provision::{build_pip_install_args, try_start_runtime_operation},
+    };
 
     #[test]
     fn pip_install_args_use_profile_install_source_and_exact_packages() {

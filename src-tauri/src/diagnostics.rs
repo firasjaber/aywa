@@ -1,16 +1,16 @@
 use std::{
+    collections::VecDeque,
     fs::{self, File, OpenOptions},
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    collections::VecDeque,
     sync::{Mutex, OnceLock},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use tauri::Manager;
 use serde::Serialize;
+use tauri::Manager;
 
 static LOG_FILE: OnceLock<Mutex<File>> = OnceLock::new();
 static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
@@ -118,7 +118,11 @@ pub fn log(message: impl AsRef<str>) {
     let line = format!("[{}] {event}", timestamp_ms());
     eprintln!("{line}");
 
-    if let Some(events) = RECENT_EVENTS.get_or_init(|| Mutex::new(VecDeque::new())).lock().ok() {
+    if let Some(events) = RECENT_EVENTS
+        .get_or_init(|| Mutex::new(VecDeque::new()))
+        .lock()
+        .ok()
+    {
         let mut events = events;
         events.push_back(event);
         if events.len() > MAX_RECENT_EVENTS {
@@ -131,10 +135,16 @@ pub fn log(message: impl AsRef<str>) {
             let line_bytes = line.len() as u64 + 1;
             let can_write = match (LOG_DIRECTORY.get(), LOG_PATH.get()) {
                 (Some(directory), Some(active_path)) => {
-                    enforce_log_cap(directory, MAX_MANAGED_LOG_BYTES.saturating_sub(line_bytes), Some(active_path))
-                        .is_ok()
+                    enforce_log_cap(
+                        directory,
+                        MAX_MANAGED_LOG_BYTES.saturating_sub(line_bytes),
+                        Some(active_path),
+                    )
+                    .is_ok()
                         && fs::metadata(active_path)
-                            .map(|metadata| metadata.len().saturating_add(line_bytes) <= MAX_MANAGED_LOG_BYTES)
+                            .map(|metadata| {
+                                metadata.len().saturating_add(line_bytes) <= MAX_MANAGED_LOG_BYTES
+                            })
                             .unwrap_or(false)
                 }
                 _ => true,
@@ -203,7 +213,10 @@ fn run_logged_command_inner(
     }
 
     if status.success() {
-        log(format!("[command] success description=\"{}\" status={}", description, status));
+        log(format!(
+            "[command] success description=\"{}\" status={}",
+            description, status
+        ));
         return Ok(());
     }
 
@@ -264,7 +277,9 @@ fn collect_command_pipe<R: Read + Send + 'static>(
                 }
                 Err(error) => {
                     let message = format!("{stream}: failed to read command output: {error}");
-                    log(format!("[command:{stream}] {description}: output read failed"));
+                    log(format!(
+                        "[command:{stream}] {description}: output read failed"
+                    ));
                     lines.push(message);
                     break;
                 }
@@ -318,7 +333,9 @@ pub fn redact_sensitive_text(value: &str) -> String {
         output.push_str(&remaining[..index]);
         output.push_str("<redacted-path>");
         let path_end = remaining[index..]
-            .find(|character: char| character.is_whitespace() || matches!(character, '\"' | '\'' | ')' | ']'))
+            .find(|character: char| {
+                character.is_whitespace() || matches!(character, '\"' | '\'' | ')' | ']')
+            })
             .unwrap_or(remaining[index..].len());
         remaining = &remaining[index + path_end..];
     }
@@ -363,13 +380,19 @@ pub fn build_issue_report(input: IssueReportInput) -> IssueReport {
 fn find_path_start(value: &str) -> Option<usize> {
     value.char_indices().find_map(|(index, character)| {
         let suffix = &value[index..];
-        (character == '/' || (character.is_ascii_alphabetic() && suffix[1..].starts_with(":\\")) || (character.is_ascii_alphabetic() && suffix[1..].starts_with(":/")))
-            .then_some(index)
+        (character == '/'
+            || (character.is_ascii_alphabetic() && suffix[1..].starts_with(":\\"))
+            || (character.is_ascii_alphabetic() && suffix[1..].starts_with(":/")))
+        .then_some(index)
     })
 }
 
 fn session_log_path(directory: &Path) -> PathBuf {
-    directory.join(format!("{SESSION_LOG_PREFIX}{}-{}.log", timestamp_ms(), std::process::id()))
+    directory.join(format!(
+        "{SESSION_LOG_PREFIX}{}-{}.log",
+        timestamp_ms(),
+        std::process::id()
+    ))
 }
 
 fn managed_session_logs(directory: &Path) -> Result<Vec<(PathBuf, u64)>, String> {
@@ -380,7 +403,11 @@ fn managed_session_logs(directory: &Path) -> Result<Vec<(PathBuf, u64)>, String>
             let path = entry.path();
             let name = path.file_name()?.to_str()?;
             (name.starts_with(SESSION_LOG_PREFIX) && name.ends_with(SESSION_LOG_SUFFIX))
-                .then(|| fs::metadata(&path).ok().map(|metadata| (path, metadata.len())))
+                .then(|| {
+                    fs::metadata(&path)
+                        .ok()
+                        .map(|metadata| (path, metadata.len()))
+                })
                 .flatten()
         })
         .collect::<Vec<_>>();
@@ -388,12 +415,20 @@ fn managed_session_logs(directory: &Path) -> Result<Vec<(PathBuf, u64)>, String>
     Ok(logs)
 }
 
-pub fn enforce_log_cap(directory: &Path, cap: u64, active_path: Option<&Path>) -> Result<u64, String> {
+pub fn enforce_log_cap(
+    directory: &Path,
+    cap: u64,
+    active_path: Option<&Path>,
+) -> Result<u64, String> {
     let logs = managed_session_logs(directory)?;
     let mut total = logs.iter().map(|(_, size)| size).sum::<u64>();
     for (path, size) in logs {
-        if total <= cap { break; }
-        if active_path.is_some_and(|active| active == path) { continue; }
+        if total <= cap {
+            break;
+        }
+        if active_path.is_some_and(|active| active == path) {
+            continue;
+        }
         fs::remove_file(path).map_err(|error| error.to_string())?;
         total = total.saturating_sub(size);
     }

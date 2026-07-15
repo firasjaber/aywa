@@ -8,8 +8,10 @@ pub fn load_manifest() -> anyhow::Result<RuntimeProfileManifest> {
     let manifest = serde_json::from_str::<RuntimeProfileManifest>(MANIFEST_SOURCE)?;
 
     for profile in &manifest.profiles {
-        if let Some(RuntimeProfileCapabilityRange { min: Some(min), max: Some(max) }) =
-            &profile.capability_range
+        if let Some(RuntimeProfileCapabilityRange {
+            min: Some(min),
+            max: Some(max),
+        }) = &profile.capability_range
         {
             if min > max {
                 anyhow::bail!(

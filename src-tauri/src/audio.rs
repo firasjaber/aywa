@@ -291,7 +291,11 @@ mod tests {
         let path = build_output_path(std::path::Path::new("C:/temp"), 1_713_024_800_123);
         assert_eq!(path.parent().unwrap(), std::path::Path::new("C:/temp"));
         assert_eq!(path.extension().unwrap(), "wav");
-        assert!(path.file_name().unwrap().to_string_lossy().starts_with("recording-"));
+        assert!(path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("recording-"));
     }
 
     #[test]

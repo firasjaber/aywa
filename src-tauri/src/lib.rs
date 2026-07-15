@@ -225,12 +225,17 @@ pub fn toggle_overlay(app: AppHandle) -> Result<bool, String> {
     overlay::toggle_overlay(&app).map_err(|error| error.to_string())
 }
 
-pub fn startup_model_manager<R: Runtime>(app: &AppHandle<R>) -> Result<ModelManagerSnapshot, String> {
+pub fn startup_model_manager<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<ModelManagerSnapshot, String> {
     let state: State<'_, ModelManagerState> = app.state();
     model_manager::service::startup_reconcile(app, state.inner())
 }
 
-pub fn list_models<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) -> ModelManagerSnapshot {
+pub fn list_models<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> ModelManagerSnapshot {
     model_manager::service::list_models(app, state)
 }
 
@@ -247,7 +252,9 @@ pub fn preview_issue_report<R: Runtime>(
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         operating_system: snapshot.operating_system,
         selected_model_id: snapshot.selected_model_id.as_str().to_string(),
-        loaded_model_id: snapshot.loaded_model_id.map(|model_id| model_id.as_str().to_string()),
+        loaded_model_id: snapshot
+            .loaded_model_id
+            .map(|model_id| model_id.as_str().to_string()),
         execution_device: snapshot.live_execution_device,
     })
 }
@@ -283,7 +290,10 @@ pub fn unload_model<R: Runtime>(
     model_manager::service::unload_model(app, state)
 }
 
-pub fn get_model_status<R: Runtime>(app: &AppHandle<R>, state: &ModelManagerState) -> ModelManagerSnapshot {
+pub fn get_model_status<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &ModelManagerState,
+) -> ModelManagerSnapshot {
     model_manager::service::get_model_status(app, state)
 }
 

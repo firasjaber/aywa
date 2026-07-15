@@ -4,7 +4,10 @@ use std::path::PathBuf;
 pub enum ModelId {
     #[serde(rename = "parakeet-v0.2-en", alias = "parakeet-v02-en")]
     ParakeetV02En,
-    #[serde(rename = "parakeet-v0.3-multilingual", alias = "parakeet-v03-multilingual")]
+    #[serde(
+        rename = "parakeet-v0.3-multilingual",
+        alias = "parakeet-v03-multilingual"
+    )]
     ParakeetV03Multilingual,
 }
 

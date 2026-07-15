@@ -37,7 +37,12 @@ pub fn parse_model_asset(model_id: ModelId, body: &str) -> anyhow::Result<Remote
     let entry = entries
         .into_iter()
         .find(|entry| entry.path == definition.expected_file_name)
-        .ok_or_else(|| anyhow!("missing {} in Hugging Face tree", definition.expected_file_name))?;
+        .ok_or_else(|| {
+            anyhow!(
+                "missing {} in Hugging Face tree",
+                definition.expected_file_name
+            )
+        })?;
     let lfs = entry.lfs.context("expected LFS metadata for .nemo asset")?;
 
     Ok(RemoteModelAsset {
@@ -62,11 +67,7 @@ pub fn fetch_model_asset(
         model_id.as_str(),
         url
     );
-    let body = client
-        .get(&url)
-        .send()?
-        .error_for_status()?
-        .text()?;
+    let body = client.get(&url).send()?.error_for_status()?.text()?;
 
     eprintln!(
         "[model_manager] fetch_model_asset response model_id={} body_len={}",
