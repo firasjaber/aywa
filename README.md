@@ -2,7 +2,7 @@
 
 Aywa is a Windows desktop app for local voice typing. Hold a global shortcut, speak, and release it; Aywa transcribes the recording on your computer, copies the result to the clipboard, and attempts to paste it into the active app.
 
-> **Early development:** Aywa currently supports Windows only. Public release installers and code signing have not been finalized yet.
+> **Early development:** Aywa currently supports Windows only. Official installers are published through GitHub Releases, signed with the Aywa publisher certificate, and accompanied by SHA-256 checksums.
 
 ## What Aywa does
 
@@ -22,7 +22,7 @@ Aywa keeps a WAV only while it is needed for local transcription, then deletes i
 Aywa does not have a published installer yet. When releases are available:
 
 1. Open [GitHub Releases](https://github.com/firasjaber/aywa/releases).
-2. Download and install the Windows release.
+2. Download the signed Windows installer and its `SHA256SUMS.txt` file.
 3. Follow the [user guide](docs/USER_GUIDE.md) to prepare Aywa, download a model, and dictate your first text.
 
 For installation details and source builds, read the [setup guide](docs/SETUP.md).
@@ -33,6 +33,8 @@ For installation details and source builds, read the [setup guide](docs/SETUP.md
 - [Setup guide](docs/SETUP.md) — release installation and building from source.
 - [Troubleshooting](docs/TROUBLESHOOTING.md) — symptom-based recovery steps.
 - [Help and issue reports](docs/SUPPORT.md) — collect diagnostics and report a bug safely.
+- [Security policy](SECURITY.md) — report a vulnerability privately.
+- [Release checklist](docs/RELEASE_CHECKLIST.md) — verify releases and create a version tag.
 - [Public-release audit](docs/PUBLIC_RELEASE_AUDIT.md) — prioritized release risks and recommendations.
 
 ## Build from source

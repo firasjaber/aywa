@@ -17,36 +17,38 @@ huggingface.co
 SBOM
 `;
 
-async function createFixture({ packageLicense = 'MIT', cargoLicense = 'MIT', notice = validNotice } = {}) {
+async function createFixture({ packageVersion = '0.1.0', cargoVersion = '0.1.0', tauriVersion = '0.1.0', targets = ['nsis'], author = 'Firas Jaber', security = true, checklist = true } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'aywa-policy-'));
   await mkdir(join(root, 'src-tauri'));
+  await mkdir(join(root, 'docs'));
   await Promise.all([
     writeFile(join(root, 'LICENSE'), 'MIT License\nCopyright (c) 2026 Firas Jaber\n'),
     writeFile(join(root, 'NOTICE'), 'Aywa\nCopyright (c) 2026 Firas Jaber\n'),
-    writeFile(join(root, 'THIRD_PARTY_NOTICES.md'), notice),
-    writeFile(join(root, 'package.json'), JSON.stringify({ license: packageLicense })),
-    writeFile(join(root, 'src-tauri', 'Cargo.toml'), `[package]\nlicense = "${cargoLicense}"\nrepository = "https://github.com/firasjaber/aywa"\n`)
+    writeFile(join(root, 'THIRD_PARTY_NOTICES.md'), validNotice),
+    writeFile(join(root, 'package.json'), JSON.stringify({ license: 'MIT', version: packageVersion })),
+    writeFile(join(root, 'src-tauri', 'Cargo.toml'), `[package]\nversion = "${cargoVersion}"\nauthors = ["${author}"]\nlicense = "MIT"\nrepository = "https://github.com/firasjaber/aywa"\n`),
+    writeFile(join(root, 'src-tauri', 'tauri.conf.json'), JSON.stringify({ version: tauriVersion, bundle: { targets } })),
+    security ? writeFile(join(root, 'SECURITY.md'), '# Security') : Promise.resolve(),
+    checklist ? writeFile(join(root, 'docs', 'RELEASE_CHECKLIST.md'), '# Releases') : Promise.resolve()
   ]);
   return root;
 }
 
-test('accepts the required MIT metadata and policy content', async (t) => {
+test('accepts synchronized signed-release policy requirements', async (t) => {
   const root = await createFixture();
   t.after(() => rm(root, { recursive: true, force: true }));
-  assert.deepEqual(await verifyReleasePolicy(root), []);
+  assert.deepEqual(await verifyReleasePolicy(root, { tag: 'v0.1.0' }), []);
 });
 
-test('reports missing or inconsistent release-policy requirements', async (t) => {
-  const root = await createFixture({ packageLicense: 'Apache-2.0', notice: '# Incomplete' });
+test('reports version, Windows target, documentation, author, and tag failures', async (t) => {
+  const root = await createFixture({ cargoVersion: '0.1.1', targets: 'all', author: 'you', security: false, checklist: false });
   t.after(() => rm(root, { recursive: true, force: true }));
-  assert.deepEqual(await verifyReleasePolicy(root), [
-    'package.json must declare license "MIT".',
-    'THIRD_PARTY_NOTICES.md must mention "CPython embeddable distribution".',
-    'THIRD_PARTY_NOTICES.md must mention "get-pip.py".',
-    'THIRD_PARTY_NOTICES.md must mention "python.org".',
-    'THIRD_PARTY_NOTICES.md must mention "bootstrap.pypa.io".',
-    'THIRD_PARTY_NOTICES.md must mention "download.pytorch.org".',
-    'THIRD_PARTY_NOTICES.md must mention "huggingface.co".',
-    'THIRD_PARTY_NOTICES.md must mention "SBOM".'
+  assert.deepEqual(await verifyReleasePolicy(root, { tag: 'v0.2.0' }), [
+    'Cargo.toml must identify a non-placeholder author.',
+    'package.json, Cargo.toml, and tauri.conf.json must use the same version.',
+    'tauri.conf.json must target only the Windows NSIS bundle.',
+    'SECURITY.md must document public release operations.',
+    'docs/RELEASE_CHECKLIST.md must document public release operations.',
+    'Release tag v0.2.0 must match version 0.1.1.'
   ]);
 });

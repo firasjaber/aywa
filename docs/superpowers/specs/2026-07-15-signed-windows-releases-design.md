@@ -41,7 +41,8 @@ Release automation does not rewrite committed manifests.
   the installer with SignTool, verifies the Authenticode signature, hashes the
   public artifacts, smoke-installs the installer silently, and creates the
   GitHub Release.
-- `rust-toolchain.toml` pins the Rust compiler used by CI and contributors.
+- `rust-toolchain.toml` pins Rust 1.95.0, the earliest tested compiler that
+  can parse the current Edition 2024 dependency graph, for CI and contributors.
 - A small Node release-policy verifier/test suite validates metadata, Windows
   target scope, security/release documentation, and synchronized versions.
 - `SECURITY.md` supplies a private vulnerability-reporting path and disclosure

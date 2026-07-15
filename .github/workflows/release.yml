@@ -1,0 +1,99 @@
+name: Signed Windows Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: signed-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-2022
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.15.0
+          cache: npm
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Verify release tag and signing credentials
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/verify-release-policy.mjs --tag "$env:RELEASE_TAG"
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) {
+            throw 'Windows signing secrets are required for public releases.'
+          }
+      - name: Run checks and tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run check
+          npm run build
+          cargo test --manifest-path src-tauri/Cargo.toml --locked
+          python -m pytest src-tauri/python/tests -v
+      - name: Prepare embedded Python resources
+        run: npm run prepare:python-runtime
+      - name: Build Windows installer
+        run: npm run tauri -- build --bundles nsis
+      - name: Sign and verify installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem 'src-tauri\target\release\bundle\nsis' -Filter '*.exe' -File
+          if ($installer.Count -ne 1) { throw "Expected one NSIS installer, found $($installer.Count)." }
+          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
+            Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if ([string]::IsNullOrWhiteSpace($signTool)) { throw 'SignTool was not found on the Windows runner.' }
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'aywa-signing.pfx'
+          try {
+            [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX_BASE64))
+            & $signTool sign /fd SHA256 /f $certificatePath /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td SHA256 /d Aywa $installer.FullName
+            if ($LASTEXITCODE -ne 0) { throw 'SignTool could not sign the installer.' }
+            & $signTool verify /pa /tw /v $installer.FullName
+            if ($LASTEXITCODE -ne 0) { throw 'SignTool could not verify the installer signature.' }
+          } finally {
+            Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
+          }
+      - name: Create checksums and smoke-install the signed installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+          $installer = Get-ChildItem 'src-tauri\target\release\bundle\nsis' -Filter '*.exe' -File
+          if ($installer.Count -ne 1) { throw "Expected one NSIS installer, found $($installer.Count)." }
+          Copy-Item -LiteralPath $installer.FullName -Destination release-assets
+          Get-ChildItem release-assets -File -Filter '*.exe' |
+            Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "{0} *{1}" -f $_.Hash.ToLowerInvariant(), $_.Name } |
+            Set-Content -NoNewline release-assets\SHA256SUMS.txt
+          $releaseInstaller = Get-ChildItem release-assets -File -Filter '*.exe'
+          Start-Process -FilePath $releaseInstaller.FullName -ArgumentList '/S' -Wait
+          $installedExecutable = Join-Path $env:LOCALAPPDATA 'Aywa\Aywa.exe'
+          if (!(Test-Path -LiteralPath $installedExecutable)) { throw "Smoke install did not create $installedExecutable." }
+          $uninstaller = Join-Path $env:LOCALAPPDATA 'Aywa\uninstall.exe'
+          if (Test-Path -LiteralPath $uninstaller) { Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait }
+      - name: Upload verified release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: aywa-${{ github.ref_name }}-windows
+          path: release-assets
+          if-no-files-found: error
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Aywa ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release-assets/*.exe
+            release-assets/SHA256SUMS.txt

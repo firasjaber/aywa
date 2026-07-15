@@ -6,12 +6,12 @@ Aywa currently supports 64-bit Windows only. This guide covers both installing a
 
 There is no published installer yet. Once releases are available:
 
-1. Visit [GitHub Releases](https://github.com/firasjaber/stt/releases).
-2. Download the Windows installer attached to the newest release.
+1. Visit [GitHub Releases](https://github.com/firasjaber/aywa/releases).
+2. Download the signed Windows installer and its `SHA256SUMS.txt` file from the newest release.
 3. Run the installer and start Aywa from the Start menu.
 4. Follow the [non-technical user guide](USER_GUIDE.md) for first-time model setup and dictation.
 
-The project does not currently document code signing. Windows may therefore display a SmartScreen warning for early builds. Verify the GitHub source and release checksum, if one is provided, before running an unsigned installer.
+Official Aywa installers are Authenticode-signed and the release workflow publishes a SHA-256 checksum for each installer. Verify the checksum before running an installer; see the [release checklist](RELEASE_CHECKLIST.md#verify-the-published-release).
 
 ### Runtime requirements
 
@@ -29,7 +29,7 @@ Install these Windows tools before cloning Aywa:
 
 - Git.
 - Node.js 20.19 or newer (or Node.js 22.12 or newer), with npm.
-- Rust using `rustup`; the project declares Rust 1.77.2 or newer.
+- Rust using `rustup`; the project pins Rust 1.95.0.
 - Microsoft C++ Build Tools with the **Desktop development with C++** workload and a Windows SDK.
 - Microsoft Edge WebView2 Runtime (included with current Windows versions).
 - Python with pytest for running the small Python unit-test suite. The packaged app uses its own managed Python 3.12.10 runtime.
@@ -37,8 +37,8 @@ Install these Windows tools before cloning Aywa:
 ### Clone and install JavaScript dependencies
 
 ```powershell
-git clone https://github.com/firasjaber/stt.git
-cd stt
+git clone https://github.com/firasjaber/aywa.git
+cd aywa
 npm ci
 ```
 
@@ -75,4 +75,4 @@ npm run tauri:build
 
 The command prepares the locked embedded Python files, builds the frontend, compiles the Rust application, and creates Tauri bundles under `src-tauri\target\release\bundle`.
 
-Before distributing a build, resolve the blockers in the [public-release audit](PUBLIC_RELEASE_AUDIT.md), choose a license, establish code signing, and test the installer on a clean Windows machine.
+Before distributing a build, follow the [signed release checklist](RELEASE_CHECKLIST.md). The GitHub release workflow requires code signing, verifies the installer signature and SHA-256 hash, and smoke-installs it on a fresh Windows runner.
