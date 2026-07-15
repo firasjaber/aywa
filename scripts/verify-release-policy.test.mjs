@@ -17,7 +17,7 @@ huggingface.co
 SBOM
 `;
 
-async function createFixture({ packageVersion = '0.1.0', cargoVersion = '0.1.0', tauriVersion = '0.1.0', targets = ['nsis'], author = 'Firas Jaber', security = true, checklist = true } = {}) {
+async function createFixture({ packageVersion = '0.1.0', cargoVersion = '0.1.0', tauriVersion = '0.1.0', targets = ['nsis'], author = 'Firas Jaber', security = true, checklist = true, checklistContent = 'unsigned\nSHA256SUMS.txt' } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'aywa-policy-'));
   await mkdir(join(root, 'src-tauri'));
   await mkdir(join(root, 'docs'));
@@ -29,26 +29,27 @@ async function createFixture({ packageVersion = '0.1.0', cargoVersion = '0.1.0',
     writeFile(join(root, 'src-tauri', 'Cargo.toml'), `[package]\nversion = "${cargoVersion}"\nauthors = ["${author}"]\nlicense = "MIT"\nrepository = "https://github.com/firasjaber/aywa"\n`),
     writeFile(join(root, 'src-tauri', 'tauri.conf.json'), JSON.stringify({ version: tauriVersion, bundle: { targets } })),
     security ? writeFile(join(root, 'SECURITY.md'), '# Security') : Promise.resolve(),
-    checklist ? writeFile(join(root, 'docs', 'RELEASE_CHECKLIST.md'), '# Releases') : Promise.resolve()
+    checklist ? writeFile(join(root, 'docs', 'RELEASE_CHECKLIST.md'), checklistContent) : Promise.resolve()
   ]);
   return root;
 }
 
-test('accepts synchronized signed-release policy requirements', async (t) => {
+test('accepts synchronized unsigned-release policy requirements', async (t) => {
   const root = await createFixture();
   t.after(() => rm(root, { recursive: true, force: true }));
   assert.deepEqual(await verifyReleasePolicy(root, { tag: 'v0.1.0' }), []);
 });
 
 test('reports version, Windows target, documentation, author, and tag failures', async (t) => {
-  const root = await createFixture({ cargoVersion: '0.1.1', targets: 'all', author: 'you', security: false, checklist: false });
+  const root = await createFixture({ cargoVersion: '0.1.1', targets: 'all', author: 'you', security: false, checklistContent: '# Releases' });
   t.after(() => rm(root, { recursive: true, force: true }));
   assert.deepEqual(await verifyReleasePolicy(root, { tag: 'v0.2.0' }), [
     'Cargo.toml must identify a non-placeholder author.',
     'package.json, Cargo.toml, and tauri.conf.json must use the same version.',
     'tauri.conf.json must target only the Windows NSIS bundle.',
     'SECURITY.md must document public release operations.',
-    'docs/RELEASE_CHECKLIST.md must document public release operations.',
+    'docs/RELEASE_CHECKLIST.md must disclose that installers are unsigned.',
+    'docs/RELEASE_CHECKLIST.md must document SHA256SUMS.txt verification.',
     'Release tag v0.2.0 must match version 0.1.1.'
   ]);
 });

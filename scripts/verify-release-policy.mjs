@@ -31,13 +31,14 @@ function cargoValue(cargoToml, key) {
 
 export async function verifyReleasePolicy(root, { tag } = {}) {
   const failures = [];
-  const [license, notice, thirdPartyNotices, packageJson, cargoToml, tauriJson] = await Promise.all([
+  const [license, notice, thirdPartyNotices, packageJson, cargoToml, tauriJson, releaseChecklist] = await Promise.all([
     read(root, 'LICENSE'),
     read(root, 'NOTICE'),
     read(root, 'THIRD_PARTY_NOTICES.md'),
     read(root, 'package.json'),
     read(root, 'src-tauri/Cargo.toml'),
-    read(root, 'src-tauri/tauri.conf.json')
+    read(root, 'src-tauri/tauri.conf.json'),
+    read(root, 'docs/RELEASE_CHECKLIST.md').catch(() => '')
   ]);
   const packageMetadata = JSON.parse(packageJson);
   const tauriMetadata = JSON.parse(tauriJson);
@@ -72,6 +73,12 @@ export async function verifyReleasePolicy(root, { tag } = {}) {
     if (!(await exists(root, path))) {
       failures.push(`${path} must document public release operations.`);
     }
+  }
+  if (!releaseChecklist.includes('unsigned')) {
+    failures.push('docs/RELEASE_CHECKLIST.md must disclose that installers are unsigned.');
+  }
+  if (!releaseChecklist.includes('SHA256SUMS.txt')) {
+    failures.push('docs/RELEASE_CHECKLIST.md must document SHA256SUMS.txt verification.');
   }
   if (tag !== undefined) {
     if (!/^v\d+\.\d+\.\d+$/.test(tag)) {

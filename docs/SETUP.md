@@ -7,11 +7,11 @@ Aywa currently supports 64-bit Windows only. This guide covers both installing a
 There is no published installer yet. Once releases are available:
 
 1. Visit [GitHub Releases](https://github.com/firasjaber/aywa/releases).
-2. Download the signed Windows installer and its `SHA256SUMS.txt` file from the newest release.
+2. Download the unsigned Windows installer and its `SHA256SUMS.txt` file from the newest release.
 3. Run the installer and start Aywa from the Start menu.
 4. Follow the [non-technical user guide](USER_GUIDE.md) for first-time model setup and dictation.
 
-Official Aywa installers are Authenticode-signed and the release workflow publishes a SHA-256 checksum for each installer. Verify the checksum before running an installer; see the [release checklist](RELEASE_CHECKLIST.md#verify-the-published-release).
+Aywa installers are unsigned. Windows may show an unknown-publisher or SmartScreen warning. Download only from the project's GitHub Releases page and verify the SHA-256 checksum before running an installer; a checksum verifies the downloaded file's integrity, not the publisher's identity. See the [release checklist](RELEASE_CHECKLIST.md#verify-the-published-release).
 
 ### Runtime requirements
 
@@ -75,4 +75,4 @@ npm run tauri:build
 
 The command prepares the locked embedded Python files, builds the frontend, compiles the Rust application, and creates Tauri bundles under `src-tauri\target\release\bundle`.
 
-Before distributing a build, follow the [signed release checklist](RELEASE_CHECKLIST.md). The GitHub release workflow requires code signing, verifies the installer signature and SHA-256 hash, and smoke-installs it on a fresh Windows runner.
+Before distributing a build, follow the [release checklist](RELEASE_CHECKLIST.md). The GitHub release workflow tests the build, publishes a SHA-256 hash, and smoke-installs the unsigned installer on a fresh Windows runner.

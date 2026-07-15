@@ -1,4 +1,4 @@
-name: Signed Windows Release
+name: Unsigned Windows Release
 
 on:
   push:
@@ -16,8 +16,6 @@ jobs:
     runs-on: windows-2022
     env:
       RELEASE_TAG: ${{ github.ref_name }}
-      WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
-      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,14 +24,11 @@ jobs:
           cache: npm
       - name: Install frontend dependencies
         run: npm ci
-      - name: Verify release tag and signing credentials
+      - name: Verify release tag
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           node scripts/verify-release-policy.mjs --tag "$env:RELEASE_TAG"
-          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) {
-            throw 'Windows signing secrets are required for public releases.'
-          }
       - name: Run checks and tests
         shell: pwsh
         run: |
@@ -46,26 +41,7 @@ jobs:
         run: npm run prepare:python-runtime
       - name: Build Windows installer
         run: npm run tauri -- build --bundles nsis
-      - name: Sign and verify installer
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $installer = Get-ChildItem 'src-tauri\target\release\bundle\nsis' -Filter '*.exe' -File
-          if ($installer.Count -ne 1) { throw "Expected one NSIS installer, found $($installer.Count)." }
-          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
-            Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-          if ([string]::IsNullOrWhiteSpace($signTool)) { throw 'SignTool was not found on the Windows runner.' }
-          $certificatePath = Join-Path $env:RUNNER_TEMP 'aywa-signing.pfx'
-          try {
-            [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX_BASE64))
-            & $signTool sign /fd SHA256 /f $certificatePath /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td SHA256 /d Aywa $installer.FullName
-            if ($LASTEXITCODE -ne 0) { throw 'SignTool could not sign the installer.' }
-            & $signTool verify /pa /tw /v $installer.FullName
-            if ($LASTEXITCODE -ne 0) { throw 'SignTool could not verify the installer signature.' }
-          } finally {
-            Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
-          }
-      - name: Create checksums and smoke-install the signed installer
+      - name: Create checksums and smoke-install the unsigned installer
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'

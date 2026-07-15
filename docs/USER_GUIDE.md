@@ -6,12 +6,23 @@ This guide explains how to install and use Aywa on Windows. You do not need deve
 
 Aywa does not have a published installer yet. When a release is available:
 
-1. Open the [Aywa releases page](https://github.com/firasjaber/stt/releases).
-2. Open the newest release and download its Windows installer.
-3. Open the downloaded installer and follow its instructions.
-4. If Windows shows a security warning, confirm that the publisher and download source are what you expect before continuing. Early unsigned builds may trigger Microsoft Defender SmartScreen.
+1. Open the [Aywa releases page](https://github.com/firasjaber/aywa/releases).
+2. Open the newest release and download its Windows installer and `SHA256SUMS.txt` file.
+3. Check that the installer hash matches the `SHA256SUMS.txt` entry before opening it.
+4. Open the downloaded installer and follow its instructions.
+5. Aywa installers are unsigned, so Windows may show an unknown-publisher or Microsoft Defender SmartScreen warning. Continue only when the GitHub Releases page and checksum are what you expect.
 
 Only download Aywa from the project’s GitHub Releases page.
+
+To check a download, open PowerShell in the download folder and run:
+
+```powershell
+Get-FileHash .\Aywa*.exe -Algorithm SHA256
+```
+
+Compare the displayed value with the installer line in `SHA256SUMS.txt`. This
+checks that the file was not changed after it was published; it does not prove
+who published it.
 
 ## Open Aywa
 

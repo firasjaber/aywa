@@ -19,6 +19,4 @@ as soon as practical. These are goals, not response-time guarantees.
 
 Keep the report private while a fix is prepared. We will coordinate a release
 and public disclosure with the reporter after users have a reasonable upgrade
-path. If signing credentials are compromised, we will revoke or replace the
-certificate, publish a signed remediation release, and document the affected
-artifacts in its release notes.
+path.

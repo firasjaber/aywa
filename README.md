@@ -2,7 +2,7 @@
 
 Aywa is a Windows desktop app for local voice typing. Hold a global shortcut, speak, and release it; Aywa transcribes the recording on your computer, copies the result to the clipboard, and attempts to paste it into the active app.
 
-> **Early development:** Aywa currently supports Windows only. Official installers are published through GitHub Releases, signed with the Aywa publisher certificate, and accompanied by SHA-256 checksums.
+> **Early development:** Aywa currently supports Windows only. Official installers are published unsigned through GitHub Releases and accompanied by SHA-256 checksums.
 
 ## What Aywa does
 
@@ -22,7 +22,8 @@ Aywa keeps a WAV only while it is needed for local transcription, then deletes i
 Aywa does not have a published installer yet. When releases are available:
 
 1. Open [GitHub Releases](https://github.com/firasjaber/aywa/releases).
-2. Download the signed Windows installer and its `SHA256SUMS.txt` file.
+2. Download the unsigned Windows installer and its `SHA256SUMS.txt` file.
+3. Verify the installer hash before opening it; checksums verify file integrity, not the publisher's identity.
 3. Follow the [user guide](docs/USER_GUIDE.md) to prepare Aywa, download a model, and dictate your first text.
 
 For installation details and source builds, read the [setup guide](docs/SETUP.md).
