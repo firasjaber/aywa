@@ -1,5 +1,3 @@
-use std::process::Command;
-
 use libloading::Library;
 
 use crate::runtime_profile::types::RuntimeMachineFacts;
@@ -37,7 +35,7 @@ fn parse_compute_capability(value: &str) -> Option<u32> {
 
 pub fn detect_machine_facts() -> RuntimeMachineFacts {
     let cuda_driver_available = unsafe { Library::new("nvcuda.dll") }.is_ok();
-    let output = Command::new("nvidia-smi")
+    let output = crate::child_process::internal_command("nvidia-smi")
         .args([
             "--query-gpu=name,driver_version,compute_cap",
             "--format=csv,noheader",

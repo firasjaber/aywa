@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod child_process;
 pub mod clipboard;
 pub mod diagnostics;
 pub mod hotkey;

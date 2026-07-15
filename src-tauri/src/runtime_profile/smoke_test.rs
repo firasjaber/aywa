@@ -1,6 +1,5 @@
 use std::{
     path::Path,
-    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -24,7 +23,7 @@ pub fn run_smoke_test(
     profile_id: &str,
     expect_gpu: bool,
 ) -> Result<RuntimeSmokeTestResult, String> {
-    let output = Command::new(python_exe)
+    let output = crate::child_process::internal_command(python_exe)
         .arg(smoke_test_script)
         .arg("--profile-id")
         .arg(profile_id)

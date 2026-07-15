@@ -179,7 +179,7 @@ fn run_logged_command_inner(
     let _ = program;
     log(format!("[command] start description=\"{}\"", description));
 
-    let mut child = Command::new(program)
+    let mut child = crate::child_process::internal_command(program)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

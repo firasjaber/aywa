@@ -1,7 +1,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Stdio,
     time::Duration,
 };
 
@@ -309,7 +309,7 @@ fn enable_site_in_pth(contents: &str) -> String {
 }
 
 fn is_usable_python(candidate: &Path) -> bool {
-    Command::new(candidate)
+    crate::child_process::internal_command(candidate)
         .arg("--version")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -329,7 +329,7 @@ fn run_python_command_with_timeout(
 }
 
 fn bootstrap_pip(python_exe: &Path, get_pip_path: &Path) -> Result<(), String> {
-    if Command::new(python_exe)
+    if crate::child_process::internal_command(python_exe)
         .args(["-m", "pip", "--version"])
         .stdin(Stdio::null())
         .stdout(Stdio::null())

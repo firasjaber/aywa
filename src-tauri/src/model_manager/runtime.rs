@@ -1,4 +1,4 @@
-use std::{path::Path, process::Command};
+use std::path::Path;
 
 use libloading::Library;
 
@@ -14,7 +14,7 @@ pub fn parse_nvidia_smi_line(line: &str) -> (Option<String>, Option<String>) {
 
 pub fn preflight() -> RuntimePreflight {
     let cuda_driver_available = unsafe { Library::new("nvcuda.dll") }.is_ok();
-    let output = Command::new("nvidia-smi")
+    let output = crate::child_process::internal_command("nvidia-smi")
         .args(["--query-gpu=name,driver_version", "--format=csv,noheader"])
         .output();
 

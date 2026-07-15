@@ -2,7 +2,7 @@ use std::{
     fs,
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
-    process::{Child, ChildStdin, Command, Stdio},
+    process::{Child, ChildStdin, Stdio},
     sync::mpsc,
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -314,7 +314,7 @@ pub(crate) fn run_python_command(
 }
 
 fn python_command_succeeds(python_exe: &Path, args: &[&str]) -> bool {
-    Command::new(python_exe)
+    crate::child_process::internal_command(python_exe)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -388,7 +388,7 @@ except Exception as exc:
 result['dependencies_ready'] = result['dependency_error'] is None
 print(json.dumps(result))"#;
 
-    let output = Command::new(python_exe)
+    let output = crate::child_process::internal_command(python_exe)
         .arg("-c")
         .arg(PROBE_SCRIPT)
         .stdin(Stdio::null())
@@ -427,7 +427,7 @@ pub fn spawn_worker(
     model_id: ModelId,
     model_path: &Path,
 ) -> Result<WorkerHandle, String> {
-    let mut child = Command::new(python_exe)
+    let mut child = crate::child_process::internal_command(python_exe)
         .arg(worker_script)
         .arg("--model-id")
         .arg(model_id.as_str())
@@ -785,7 +785,7 @@ fn is_usable_python_command(candidate: &Path) -> bool {
         return false;
     }
 
-    Command::new(candidate)
+    crate::child_process::internal_command(candidate)
         .arg("--version")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
