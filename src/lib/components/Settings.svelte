@@ -21,6 +21,8 @@
 	const cudaTroubleshootingUrl =
 		'https://github.com/firasjaber/aywa/blob/main/docs/TROUBLESHOOTING.md#cuda-is-not-available';
 	const userGuideUrl = 'https://github.com/firasjaber/aywa/blob/main/docs/USER_GUIDE.md';
+	const authorWebsiteUrl = 'https://firrj.com';
+	const sourceCodeUrl = 'https://github.com/firasjaber/aywa';
 
 	let activeTab = $state<SettingsTab>('app');
 	let actionError = $state<string | null>(null);
@@ -409,6 +411,25 @@
 				{/if}
 			</div>
 		{/if}
+
+		<footer class="settings-footer">
+			Built by
+			<a
+				href={authorWebsiteUrl}
+				onclick={(event) => {
+					event.preventDefault();
+					openHelp(authorWebsiteUrl);
+				}}>Firas Jaber</a
+			>
+			<span aria-hidden="true">&mdash;</span>
+			<a
+				href={sourceCodeUrl}
+				onclick={(event) => {
+					event.preventDefault();
+					openHelp(sourceCodeUrl);
+				}}>View source code</a
+			>
+		</footer>
 	</section>
 </main>
 
@@ -426,7 +447,10 @@
 
 	.settings-window {
 		width: 100%;
+		display: flex;
 		min-height: 100vh;
+		height: 100vh;
+		flex-direction: column;
 		background: #202120;
 	}
 
@@ -477,10 +501,24 @@
 	}
 
 	.content {
-		max-height: calc(100vh - 3.25rem);
-		min-height: calc(100vh - 3.25rem);
+		min-height: 0;
+		flex: 1;
 		overflow-y: auto;
 		padding: 1.25rem;
+	}
+
+	.settings-footer {
+		padding: 0 1.25rem 1.25rem;
+		color: #bcbeb9;
+		font-size: 12px;
+		text-align: center;
+	}
+
+	.settings-footer a {
+		color: #d5f18d;
+		font-weight: 700;
+		text-decoration: underline;
+		text-underline-offset: 0.22rem;
 	}
 
 	.status-card,
@@ -951,8 +989,6 @@
 		}
 
 		.content {
-			max-height: calc(100vh - 3rem);
-			min-height: calc(100vh - 3rem);
 			padding: 1rem;
 		}
 
