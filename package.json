@@ -2,6 +2,7 @@
 	"name": "aywa",
 	"private": true,
 	"version": "0.0.1",
+	"license": "MIT",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -10,6 +11,7 @@
 		"tauri": "set \"PATH=%USERPROFILE%\\.cargo\\bin;%PATH%\" && tauri",
 		"prepare:python-runtime:lock": "powershell -ExecutionPolicy Bypass -File scripts/prepare-python-runtime.ps1 -UpdateLock",
 		"prepare:python-runtime": "powershell -ExecutionPolicy Bypass -File scripts/prepare-python-runtime.ps1",
+		"verify:release-policy": "node scripts/verify-release-policy.mjs",
 		"tauri:dev:managed-python": "npm run prepare:python-runtime && set \"AYWA_PYTHON_RUNTIME=managed\" && npm run tauri -- dev",
 		"tauri:build": "npm run prepare:python-runtime && npm run tauri -- build",
 		"prepare": "svelte-kit sync || echo ''",
