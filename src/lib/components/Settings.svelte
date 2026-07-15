@@ -5,6 +5,7 @@
 		loadModel,
 		modelManager,
 		openDiagnosticsLog,
+		previewIssueReport,
 		type ModelId,
 		type ModelRow
 	} from '$lib/stores/modelManager';
@@ -18,6 +19,9 @@
 
 	let activeTab = $state<SettingsTab>('app');
 	let actionError = $state<string | null>(null);
+	let issueReportPreview = $state<string | null>(null);
+	let reportLoading = $state(false);
+	let reportCopied = $state(false);
 	let downloadProgress = $state<Partial<Record<ModelId, number>>>({});
 	const activatingModelId = $derived(
 		$modelManager.models.find((model) => model.status === 'Loading')?.modelId ?? null
@@ -86,6 +90,31 @@
 		actionError = null;
 		try {
 			await openDiagnosticsLog();
+		} catch (error) {
+			actionError = errorText(error);
+		}
+	};
+
+	const generateIssueReport = async () => {
+		actionError = null;
+		reportCopied = false;
+		reportLoading = true;
+		try {
+			issueReportPreview = (await previewIssueReport()).preview;
+		} catch (error) {
+			actionError = errorText(error);
+		} finally {
+			reportLoading = false;
+		}
+	};
+
+	const copyIssueReport = async () => {
+		if (!issueReportPreview) return;
+		actionError = null;
+		reportCopied = false;
+		try {
+			await navigator.clipboard.writeText(issueReportPreview);
+			reportCopied = true;
 		} catch (error) {
 			actionError = errorText(error);
 		}
@@ -284,7 +313,7 @@
 			<div class="content debug-content" id="debug-panel" role="tabpanel">
 				<div class="debug-heading">
 					<h1>Diagnostics</h1>
-					<p>Read-only details for troubleshooting.</p>
+					<p>Read-only details for troubleshooting. Recordings are deleted after transcription.</p>
 				</div>
 
 				<dl class="diagnostics-list">
@@ -339,11 +368,20 @@
 				{#if actionError}<p class="debug-error" role="alert">{actionError}</p>{/if}
 
 				<div class="debug-actions">
-					<button class="secondary-action" type="button" onclick={openLog}>Open log</button>
-					<button class="primary-action" type="button" disabled title="Coming later"
-						>Copy issue report</button
+					<button class="secondary-action" type="button" onclick={openLog}>Open local log</button>
+					<button class="primary-action" type="button" onclick={generateIssueReport} disabled={reportLoading}
+						>{reportLoading ? 'Preparing reportâ€¦' : 'Preview issue report'}</button
 					>
 				</div>
+				<p class="diagnostics-policy">Logs are local, one per launch, and capped at 1 GB total. Review raw logs before sharing them.</p>
+				{#if issueReportPreview}
+					<label class="report-preview-label" for="issue-report-preview">Review this report before copying</label>
+					<textarea id="issue-report-preview" class="report-preview" readonly value={issueReportPreview}></textarea>
+					<div class="debug-actions">
+						<button class="primary-action" type="button" onclick={copyIssueReport}>Copy reviewed report</button>
+						{#if reportCopied}<span class="diagnostic-positive">Copied</span>{/if}
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</section>
@@ -835,6 +873,34 @@
 		flex-wrap: wrap;
 		gap: 0.5rem;
 		margin-top: 1rem;
+	}
+
+	.diagnostics-policy,
+	.report-preview-label {
+		display: block;
+		margin-top: 0.85rem;
+		color: #bcbeb9;
+		font-size: 12px;
+		line-height: 1.45;
+	}
+
+	.report-preview-label {
+		color: #e3e4df;
+		font-weight: 700;
+	}
+
+	.report-preview {
+		display: block;
+		width: 100%;
+		height: 11rem;
+		margin-top: 0.45rem;
+		resize: vertical;
+		border: 1px solid #50534f;
+		border-radius: 0.4rem;
+		padding: 0.65rem;
+		background: #171817;
+		color: #e3e4df;
+		font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
 	}
 
 	.primary-action {

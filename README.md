@@ -15,6 +15,8 @@ Aywa is a Windows desktop app for local voice typing. Hold a global shortcut, sp
 
 Aywa contacts Python, PyPI/PyTorch, and Hugging Face services while preparing its local runtime and downloading models. Audio transcription itself is performed locally. See the [public-release audit](docs/PUBLIC_RELEASE_AUDIT.md) for current privacy limitations, including retained recordings and diagnostic logs.
 
+Aywa keeps a WAV only while it is needed for local transcription, then deletes it. If a forced shutdown leaves a WAV behind, Aywa removes it at next startup. Diagnostics are stored locally in one log per launch and retained up to 1 GB total; the oldest sessions are removed first.
+
 ## Get started
 
 Aywa does not have a published installer yet. When releases are available:

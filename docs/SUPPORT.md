@@ -1,6 +1,6 @@
 # Help and issue reports
 
-Please check [Troubleshooting](TROUBLESHOOTING.md) before opening an issue. A focused report with safe diagnostics is much easier to investigate.
+Check [Troubleshooting](TROUBLESHOOTING.md) before opening an issue. A focused report with safe diagnostics is easier to investigate.
 
 ## Before collecting diagnostics
 
@@ -9,40 +9,29 @@ Please check [Troubleshooting](TROUBLESHOOTING.md) before opening an issue. A fo
 3. Record what you expected and what happened instead.
 4. Note your Aywa version or source commit, Windows version, and whether you installed a release or built from source.
 
-## Copy the diagnosis shown in Aywa
+## Preview and copy the safe issue report
 
 1. Click the Aywa system-tray icon to open Settings.
 2. Open **Debug**.
-3. Copy the visible values under **System tools**, **Acceleration**, **Runtime**, and **Model** into your issue.
+3. Select **Preview issue report**.
+4. Review the exact text, then select **Copy reviewed report** and paste it into the issue.
 
-The current **Copy issue report** button is disabled and marked **Coming later**, so copy the visible diagnosis manually. This limitation is tracked in the [public-release audit](PUBLIC_RELEASE_AUDIT.md).
+The report is generated locally and never sent automatically. It excludes recordings, transcripts, file paths, usernames, command arguments, and raw subprocess output.
 
-## Find the debug log
+## Find a local log
 
-1. In **Debug**, select **Open log**.
-2. Windows Explorer selects `aywa-debug.log`.
+1. In **Debug**, select **Open local log**.
+2. Windows Explorer selects the current per-launch log.
 3. Make a copy only if you need to redact it; do not edit Aywa’s active log in place.
 
-The log is normally stored below Aywa’s Windows local application-data folder. Use the in-app action instead of guessing its exact path.
-
-## Review private information before uploading
-
-Aywa’s log does not intentionally record transcript text, but it does contain sensitive context. Review the entire file and remove anything you do not want to publish, including:
-
-- Your Windows username and local filesystem paths.
-- Python, model, recording, and application-data locations.
-- GPU and driver details.
-- Commands and their complete output, which may include machine-specific information.
-- Any dictated text or other private data if a future version or dependency happens to emit it.
-
-Keep the timestamps and error lines around the failure when redacting. Never upload a log without reviewing it.
+Logs are local, one per launch, and retain at most 1 GB total. Aywa removes the oldest sessions first. Review a raw log before sharing it: it can still contain machine-specific context.
 
 ## Submit the issue
 
-1. Open the [Aywa bug report form](https://github.com/firasjaber/stt/issues/new?template=bug_report.yml).
+1. Open the [Aywa bug report form](https://github.com/firasjaber/aywa/issues/new?template=bug_report.yml).
 2. Search existing issues first to avoid duplicates.
-3. Complete every required field and paste the Debug diagnosis into the diagnosis box.
-4. Drag the reviewed/redacted `aywa-debug.log` into the log attachment area. GitHub uploads it to the issue.
+3. Complete every required field and paste the reviewed report into the diagnosis box.
+4. Attach a reviewed/redacted session log only if support asks for it.
 5. Submit the report and respond if a maintainer asks for a focused follow-up test.
 
-If the app cannot open the log, submit the issue without it and explain what happened when you selected **Open log**.
+If the app cannot open the log, submit the issue without it and explain what happened when you selected **Open local log**.
