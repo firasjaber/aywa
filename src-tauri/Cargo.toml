@@ -1,6 +1,6 @@
 [package]
 name = "aywa"
-version = "0.1.1"
+version = "0.2.0"
 description = "A local speech tray app"
 authors = ["Firas Jaber"]
 license = "MIT"

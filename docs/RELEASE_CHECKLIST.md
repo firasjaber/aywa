@@ -35,7 +35,7 @@ and only then creates the GitHub Release.
 
 Public tags are permanent release identifiers. If a published tag is wrong, do
 not force-move it; fix the release and publish a new patch version such as
-`v0.1.1`.
+`v0.2.0`.
 
 ## Verify the published release
 
@@ -43,7 +43,7 @@ Download the installer and `SHA256SUMS.txt` from the matching Aywa GitHub
 Release. Verify the downloaded installer locally:
 
 ```powershell
-Get-FileHash .\Aywa_0.1.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Aywa_0.2.0_x64-setup.exe -Algorithm SHA256
 ```
 
 Compare the lowercase SHA-256 output with the installer line in
