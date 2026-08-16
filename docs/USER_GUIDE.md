@@ -70,6 +70,10 @@ Aywa copies the result to the Windows clipboard and then tries to paste it into 
 
 The small overlay shows whether Aywa is listening, transcribing, finished, or encountered a problem. For best results, speak clearly and avoid very short or silent recordings.
 
+## Review transcription history
+
+Every successful transcription is saved automatically in the local **History** tab. History retains the text, time, and recording length only; the temporary WAV recording is still deleted after transcription. You can open an entry to read and copy it, delete individual entries, or permanently clear all History. Aywa does not upload recordings or transcription history.
+
 ## Privacy and diagnostics
 
 Aywa stores a temporary WAV only while it transcribes your speech locally, then deletes it. A recording left by an interrupted session is removed when Aywa next starts. In **Debug**, you can preview a safe issue report before copying it for support. The report excludes recordings, transcripts, file paths, usernames, command arguments, and raw subprocess output. Local diagnostics use one log per launch and retain at most 1 GB total, deleting the oldest sessions first.
@@ -79,6 +83,7 @@ Aywa stores a temporary WAV only while it transcribes your speech locally, then 
 Click the Aywa icon in the Windows system tray, or right-click it and choose **Settings**. Use:
 
 - **App** to see readiness and manage models.
+- **History** to browse locally saved transcriptions.
 - **Debug** to inspect the system, acceleration, runtime, and model status or locate the debug log.
 
 ## Need help?

@@ -2,6 +2,7 @@ pub mod audio;
 pub mod child_process;
 pub mod clipboard;
 pub mod diagnostics;
+pub mod history;
 pub mod hotkey;
 pub mod model_manager;
 pub mod overlay;
@@ -77,6 +78,36 @@ pub fn recordings_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String>
     Ok(base.join("runtime").join("recordings"))
 }
 
+pub fn history_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    Ok(app_data_dir(app)?.join("history"))
+}
+
+pub fn list_history<R: Runtime>(
+    app: &AppHandle<R>,
+    offset: usize,
+) -> Result<history::HistoryPage, String> {
+    history::HistoryRepository::new(history_dir(app)?).list(offset, history::MAX_PAGE_SIZE)
+}
+
+pub fn read_history_entry<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+) -> Result<history::HistoryTranscript, String> {
+    history::HistoryRepository::new(history_dir(app)?).read(id)
+}
+
+pub fn delete_history_entry<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<(), String> {
+    history::HistoryRepository::new(history_dir(app)?).delete(id)
+}
+
+pub fn clear_history<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    history::HistoryRepository::new(history_dir(app)?).clear()
+}
+
+pub fn repair_history_on_startup<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    history::HistoryRepository::new(history_dir(app)?).startup_repair()
+}
+
 pub fn app_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     app.path()
         .app_local_data_dir()
@@ -147,6 +178,13 @@ pub fn stop_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
 
             match transcribe::transcribe_file(app, &result.path) {
                 Ok(transcription) => {
+                    if let Err(error) = history_dir(app).and_then(|directory| {
+                        history::HistoryRepository::new(directory)
+                            .save(&transcription.text, result.duration_ms, None)
+                            .map(|_| ())
+                    }) {
+                        diagnostics::log(format!("[history] save failed: {error}"));
+                    }
                     clipboard::copy_text(&transcription.text)?;
 
                     let completed_message = if clipboard::paste_clipboard().is_ok() {

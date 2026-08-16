@@ -84,6 +84,29 @@ fn get_current_state(state: State<'_, AppStateManager>) -> aywa_lib::state::AppS
 }
 
 #[tauri::command]
+fn list_history(app: AppHandle, offset: usize) -> Result<aywa_lib::history::HistoryPage, String> {
+    aywa_lib::list_history(&app, offset)
+}
+
+#[tauri::command]
+fn read_history_entry(
+    app: AppHandle,
+    id: String,
+) -> Result<aywa_lib::history::HistoryTranscript, String> {
+    aywa_lib::read_history_entry(&app, &id)
+}
+
+#[tauri::command]
+fn delete_history_entry(app: AppHandle, id: String) -> Result<(), String> {
+    aywa_lib::delete_history_entry(&app, &id)
+}
+
+#[tauri::command]
+fn clear_history(app: AppHandle) -> Result<(), String> {
+    aywa_lib::clear_history(&app)
+}
+
+#[tauri::command]
 fn list_models(app: AppHandle, state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
     aywa_lib::list_models(&app, state.inner())
 }
@@ -212,9 +235,10 @@ fn main() {
             }
 
             if let Err(error) = aywa_lib::cleanup_recordings_on_startup(&app.handle()) {
-                aywa_lib::diagnostics::log(format!(
-                    "[recordings] startup cleanup failed: {error}"
-                ));
+                aywa_lib::diagnostics::log(format!("[recordings] startup cleanup failed: {error}"));
+            }
+            if let Err(error) = aywa_lib::repair_history_on_startup(&app.handle()) {
+                aywa_lib::diagnostics::log(format!("[history] startup repair failed: {error}"));
             }
 
             aywa_lib::configure_windows(&app.handle())?;
@@ -246,6 +270,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             show_settings,
             get_current_state,
+            list_history,
+            read_history_entry,
+            delete_history_entry,
+            clear_history,
             show_overlay,
             hide_overlay,
             toggle_overlay,

@@ -14,6 +14,7 @@ pub struct RecordingResult {
     pub path: PathBuf,
     pub sample_rate: u32,
     pub sample_count: usize,
+    pub duration_ms: u64,
 }
 
 pub struct RecorderSession {
@@ -140,6 +141,7 @@ impl RecorderSession {
             path,
             sample_rate: self.sample_rate,
             sample_count: mono_samples.len(),
+            duration_ms: duration_ms(mono_samples.len(), self.sample_rate),
         })
     }
 }
@@ -247,6 +249,10 @@ pub fn build_output_path(output_dir: &Path, timestamp_ms: u128) -> PathBuf {
     output_dir.join(format!("recording-{timestamp_ms}.wav"))
 }
 
+pub fn duration_ms(sample_count: usize, sample_rate: u32) -> u64 {
+    (sample_count as u64).saturating_mul(1_000) / u64::from(sample_rate.max(1))
+}
+
 fn sample_peak_i16(samples: &[i16]) -> i16 {
     samples.iter().map(|sample| sample.abs()).max().unwrap_or(0)
 }
@@ -270,7 +276,15 @@ fn sample_rms_i16(samples: &[i16]) -> i16 {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_output_path, downmix_to_mono_i16, sample_peak_i16, sample_rms_i16};
+    use super::{
+        build_output_path, downmix_to_mono_i16, duration_ms, sample_peak_i16, sample_rms_i16,
+    };
+
+    #[test]
+    fn duration_ms_uses_mono_sample_count_and_sample_rate() {
+        assert_eq!(duration_ms(48_000, 48_000), 1_000);
+        assert_eq!(duration_ms(24_000, 48_000), 500);
+    }
 
     #[test]
     fn stereo_i16_samples_are_downmixed_to_mono() {

@@ -3,7 +3,7 @@ import type {
 	WorkerRuntimeBootstrapStatus
 } from '$lib/stores/modelManager';
 
-export type SettingsTab = 'app' | 'debug';
+export type SettingsTab = 'app' | 'history' | 'debug';
 export type StatusTone = 'positive' | 'warning' | 'progress' | 'neutral' | 'error';
 
 export type AppStatusView = {

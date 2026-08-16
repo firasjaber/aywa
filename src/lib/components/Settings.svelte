@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { openUrl } from '@tauri-apps/plugin-opener';
+	import History from './History.svelte';
 	import {
 		downloadModel,
 		loadModel,
@@ -193,6 +194,14 @@
 				>
 				<button
 					type="button"
+					class:active={activeTab === 'history'}
+					role="tab"
+					aria-selected={activeTab === 'history'}
+					aria-controls="history-panel"
+					onclick={() => (activeTab = 'history')}>History</button
+				>
+				<button
+					type="button"
 					class:active={activeTab === 'debug'}
 					role="tab"
 					aria-selected={activeTab === 'debug'}
@@ -335,6 +344,10 @@
 					}}
 					>Need help setting up Aywa?</a
 				>
+			</div>
+		{:else if activeTab === 'history'}
+			<div class="content history-content">
+				<History />
 			</div>
 		{:else}
 			<div class="content debug-content" id="debug-panel" role="tabpanel">
