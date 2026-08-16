@@ -39,6 +39,9 @@ function Assert-Checksum([string]$Path, [string]$ExpectedSha256) {
 }
 
 $manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
+if ($manifest.getPip.url -notmatch '^https://raw\.githubusercontent\.com/pypa/get-pip/[0-9a-f]{40}/public/get-pip\.py$') {
+    throw "get-pip.py must use a raw GitHub URL pinned to a full pypa/get-pip commit."
+}
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 $pythonZipPath = Join-Path $OutputDir $manifest.pythonZip.fileName
