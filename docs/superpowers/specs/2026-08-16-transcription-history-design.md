@@ -13,7 +13,7 @@ The History layout has two panes:
 - The left pane is a paged, newest-first list. Each entry shows a compact relative date (`Just now`, `1h ago`, `Yesterday`, `1 week ago`), audio duration, detected language when available, and a two-line normalized text preview.
 - The right pane shows the selected entry. It includes its relative date, exact local creation timestamp, duration, language when available, full scrollable transcription text, and a Copy text action. Copying uses the browser clipboard API and gives brief inline confirmation.
 
-The newest entry is selected when History opens. When no entry exists, the detail panel provides an empty state explaining that successfully completed transcriptions appear here. Deleting the selected entry selects the next newest entry; when none remains, the empty state appears.
+The newest entry is selected when History opens. When no entry exists, the detail panel provides an empty state explaining that successfully completed transcriptions appear here. Deleting the selected entry selects the adjacent following row (or the preceding row when the deleted item was last); when none remains, the empty state appears.
 
 Each entry offers a delete action with confirmation. A Clear all history action in the sidebar footer requires a stronger confirmation before permanently removing all stored transcriptions.
 
@@ -31,7 +31,7 @@ All history data lives below Aywa's local app-data directory and is never upload
 `index.json` is a versioned metadata index. It contains lightweight records only:
 
 - stable entry ID;
-- ISO-8601 creation timestamp;
+- creation time as UNIX epoch milliseconds;
 - source audio duration in milliseconds;
 - language code or `null` when it is unavailable;
 - normalized, length-limited preview;
