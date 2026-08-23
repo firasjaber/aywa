@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import History from './History.svelte';
+	import HistoryPreference from './HistoryPreference.svelte';
 	import {
 		downloadModel,
 		loadModel,
@@ -326,6 +327,8 @@
 						{/each}
 					</div>
 				</section>
+
+				<HistoryPreference />
 
 				{#if actionError}
 					<p class="app-action-error" role="status">
