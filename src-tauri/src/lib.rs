@@ -24,6 +24,7 @@ use crate::{
         types::ModelId,
     },
     runtime_profile::types::RuntimeSelectionMode,
+    settings::{AppSettings, AppSettingsState, SettingsRepository},
     state::{AppState, AppStateManager},
 };
 
@@ -81,6 +82,37 @@ pub fn recordings_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String>
 
 pub fn history_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     Ok(app_data_dir(app)?.join("history"))
+}
+
+pub fn settings_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    Ok(app_data_dir(app)?.join("state").join("settings.json"))
+}
+
+pub fn startup_app_settings<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppSettingsState,
+) -> AppSettings {
+    let loaded = settings_path(app).and_then(|path| SettingsRepository::new(path).load());
+    match loaded {
+        Ok(settings) => state.replace(settings.clone()).unwrap_or(settings),
+        Err(error) => {
+            diagnostics::log(format!("[settings] load failed; using defaults: {error}"));
+            let defaults = AppSettings::default();
+            state.replace(defaults.clone()).unwrap_or(defaults)
+        }
+    }
+}
+
+pub fn get_app_settings(state: &AppSettingsState) -> Result<AppSettings, String> {
+    state.current()
+}
+
+pub fn set_save_history<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppSettingsState,
+    save_history: bool,
+) -> Result<AppSettings, String> {
+    state.set_save_history(&SettingsRepository::new(settings_path(app)?), save_history)
 }
 
 pub fn list_history<R: Runtime>(
@@ -179,9 +211,24 @@ pub fn stop_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
 
             match transcribe::transcribe_file(app, &result.path) {
                 Ok(transcription) => {
+                    let save_history = app
+                        .state::<AppSettingsState>()
+                        .current()
+                        .map(|settings| settings.save_history)
+                        .unwrap_or_else(|error| {
+                            diagnostics::log(format!(
+                                "[settings] read failed; preserving default: {error}"
+                            ));
+                            true
+                        });
                     if let Err(error) = history_dir(app).and_then(|directory| {
                         history::HistoryRepository::new(directory)
-                            .save(&transcription.text, result.duration_ms, None)
+                            .save_if_enabled(
+                                save_history,
+                                &transcription.text,
+                                result.duration_ms,
+                                None,
+                            )
                             .map(|_| ())
                     }) {
                         diagnostics::log(format!("[history] save failed: {error}"));

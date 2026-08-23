@@ -16,6 +16,7 @@ use aywa_lib::{
         types::ModelId,
     },
     runtime_profile::types::RuntimeSelectionMode,
+    settings::{AppSettings, AppSettingsState},
     state::AppStateManager,
     RuntimeHandles,
 };
@@ -104,6 +105,20 @@ fn delete_history_entry(app: AppHandle, id: String) -> Result<(), String> {
 #[tauri::command]
 fn clear_history(app: AppHandle) -> Result<(), String> {
     aywa_lib::clear_history(&app)
+}
+
+#[tauri::command]
+fn get_app_settings(state: State<'_, AppSettingsState>) -> Result<AppSettings, String> {
+    aywa_lib::get_app_settings(state.inner())
+}
+
+#[tauri::command]
+fn set_save_history(
+    app: AppHandle,
+    state: State<'_, AppSettingsState>,
+    save_history: bool,
+) -> Result<AppSettings, String> {
+    aywa_lib::set_save_history(&app, state.inner(), save_history)
 }
 
 #[tauri::command]
@@ -228,11 +243,15 @@ fn main() {
         .manage(AppStateManager::default())
         .manage(RuntimeHandles::default())
         .manage(ModelManagerState::default())
+        .manage(AppSettingsState::default())
         .setup(|app| {
             match aywa_lib::diagnostics::init_for_app(&app.handle()) {
                 Ok(_) => aywa_lib::diagnostics::log("[startup] diagnostics initialized"),
                 Err(error) => eprintln!("failed to initialize diagnostics log: {error}"),
             }
+
+            let settings_state: State<'_, AppSettingsState> = app.state();
+            aywa_lib::startup_app_settings(&app.handle(), settings_state.inner());
 
             if let Err(error) = aywa_lib::cleanup_recordings_on_startup(&app.handle()) {
                 aywa_lib::diagnostics::log(format!("[recordings] startup cleanup failed: {error}"));
@@ -274,6 +293,8 @@ fn main() {
             read_history_entry,
             delete_history_entry,
             clear_history,
+            get_app_settings,
+            set_save_history,
             show_overlay,
             hide_overlay,
             toggle_overlay,

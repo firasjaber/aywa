@@ -49,6 +49,19 @@ impl HistoryRepository {
         Self { root }
     }
 
+    pub fn save_if_enabled(
+        &self,
+        enabled: bool,
+        text: &str,
+        duration_ms: u64,
+        language: Option<String>,
+    ) -> Result<Option<HistoryEntryMetadata>, String> {
+        if !enabled {
+            return Ok(None);
+        }
+        self.save(text, duration_ms, language).map(Some)
+    }
+
     pub fn save(
         &self,
         text: &str,
@@ -285,6 +298,29 @@ fn preview(text: &str) -> String {
 mod tests {
     use super::HistoryRepository;
     use std::fs;
+
+    #[test]
+    fn disabled_history_does_not_write_metadata_or_transcript_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let repository = HistoryRepository::new(directory.path().join("history"));
+        let result = repository
+            .save_if_enabled(false, "private text", 500, None)
+            .unwrap();
+        assert_eq!(result, None);
+        assert!(repository.list(0, 50).unwrap().entries.is_empty());
+        assert!(!directory.path().join("history/transcripts").exists());
+    }
+
+    #[test]
+    fn enabled_history_uses_the_existing_save_path() {
+        let directory = tempfile::tempdir().unwrap();
+        let repository = HistoryRepository::new(directory.path().join("history"));
+        let saved = repository
+            .save_if_enabled(true, "retained text", 500, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(repository.read(&saved.id).unwrap().text, "retained text");
+    }
 
     #[test]
     fn save_lists_metadata_without_loading_transcript_bodies() {
