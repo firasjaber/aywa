@@ -72,7 +72,9 @@ The small overlay shows whether Aywa is listening, transcribing, finished, or en
 
 ## Review transcription history
 
-Every successful transcription is saved automatically in the local **History** tab. History retains the text, time, and recording length only; the temporary WAV recording is still deleted after transcription. You can open an entry to read and copy it, delete individual entries, or permanently clear all History. Aywa does not upload recordings or transcription history.
+Every successful transcription is saved automatically in the local **History** tab by default. To stop saving future transcription text, open the **App** tab and turn off **Save transcriptions to History**. Dictation still copies and attempts to paste text while this setting is off. Existing History remains until you delete individual entries or use **Clear all history**.
+
+History retains the text, time, and recording length only; the temporary WAV recording is still deleted after transcription. You can open an entry to read and copy it, delete individual entries, or permanently clear all History. Aywa does not upload recordings or transcription history.
 
 ## Privacy and diagnostics
 
