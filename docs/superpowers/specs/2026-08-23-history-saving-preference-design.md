@@ -18,11 +18,20 @@ This feature does not add retention periods, search, cloud synchronization, or c
 
 ## Preferences storage and backend contract
 
-A small, dedicated preferences module owns the setting. It stores a versioned JSON file below Aywa's local app-data `state` directory, separate from model-registry data.
+A small, dedicated preferences module owns the setting. It stores a versioned JSON file at `<app-local-data>/state/settings.json`, separate from model-registry data. This is Aywa's app-wide settings document and is intentionally extensible for future user preferences.
+
+Its initial shape is:
+
+```json
+{
+  "version": 1,
+  "saveHistory": true
+}
+```
 
 The module provides:
 
-- a default settings value with `saveHistory: true`;
+- a default settings value with `version: 1` and `saveHistory: true`;
 - loading that treats a missing preferences file as the default;
 - atomic persistence of an updated value; and
 - a read operation used by the transcription flow.
