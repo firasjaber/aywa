@@ -102,10 +102,15 @@ impl AppSettingsState {
         repository: &SettingsRepository,
         save_history: bool,
     ) -> Result<AppSettings, String> {
-        let mut next = self.current()?;
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|_| "app settings mutex poisoned".to_string())?;
+        let mut next = current.clone();
         next.save_history = save_history;
         repository.save(&next)?;
-        self.replace(next)
+        *current = next.clone();
+        Ok(next)
     }
 }
 
@@ -169,6 +174,9 @@ mod tests {
         };
         repository.save(&disabled).unwrap();
         assert_eq!(repository.load().unwrap(), disabled);
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(contents.contains(r#""saveHistory": false"#));
+        assert!(!contents.contains("save_history"));
         repository.save(&AppSettings::default()).unwrap();
         assert_eq!(repository.load().unwrap(), AppSettings::default());
         assert!(!path.with_extension("json.tmp").exists());

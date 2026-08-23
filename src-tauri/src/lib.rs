@@ -217,9 +217,9 @@ pub fn stop_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
                         .map(|settings| settings.save_history)
                         .unwrap_or_else(|error| {
                             diagnostics::log(format!(
-                                "[settings] read failed; preserving default: {error}"
+                                "[settings] read failed; skipping history save: {error}"
                             ));
-                            true
+                            false
                         });
                     if let Err(error) = history_dir(app).and_then(|directory| {
                         history::HistoryRepository::new(directory)
