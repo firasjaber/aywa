@@ -17,15 +17,15 @@ Windows release workflow. Installers are currently unsigned.
 - Remember that the installer will be unsigned; do not describe it as signed
   or claim a verified publisher identity.
 
-## Create `0.1.0`
+## Create `0.2.1`
 
 After pushing the release commit and confirming Windows CI is green, create and
 push the immutable annotated tag:
 
 ```powershell
 git status
-git tag -a v0.1.0 -m "Aywa 0.1.0"
-git push origin v0.1.0
+git tag -a v0.2.1 -m "Aywa 0.2.1"
+git push origin v0.2.1
 ```
 
 The `Unsigned Windows Release` workflow checks the tag and manifest versions,
@@ -35,7 +35,7 @@ and only then creates the GitHub Release.
 
 Public tags are permanent release identifiers. If a published tag is wrong, do
 not force-move it; fix the release and publish a new patch version such as
-`v0.2.0`.
+`v0.2.1`.
 
 ## Verify the published release
 
@@ -43,7 +43,7 @@ Download the installer and `SHA256SUMS.txt` from the matching Aywa GitHub
 Release. Verify the downloaded installer locally:
 
 ```powershell
-Get-FileHash .\Aywa_0.2.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Aywa_0.2.1_x64-setup.exe -Algorithm SHA256
 ```
 
 Compare the lowercase SHA-256 output with the installer line in
