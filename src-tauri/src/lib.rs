@@ -9,6 +9,7 @@ pub mod overlay;
 pub mod python_runtime;
 pub mod recordings;
 pub mod runtime_profile;
+pub mod settings;
 pub mod state;
 pub mod transcribe;
 
