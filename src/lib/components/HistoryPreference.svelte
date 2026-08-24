@@ -68,7 +68,7 @@
 	.history-preference {
 		display: grid;
 		gap: 0.75rem;
-		margin-top: 1.1rem;
+		margin-top: 0;
 		border: 1px solid #50534f;
 		border-radius: 0.75rem;
 		padding: 0.85rem;

@@ -3,7 +3,13 @@ import type {
 	WorkerRuntimeBootstrapStatus
 } from '$lib/stores/modelManager';
 
-export type SettingsTab = 'app' | 'history' | 'debug';
+export type SettingsTab = 'app' | 'settings' | 'history' | 'debug';
+export const SETTINGS_TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
+	{ id: 'app', label: 'App' },
+	{ id: 'settings', label: 'Settings' },
+	{ id: 'history', label: 'History' },
+	{ id: 'debug', label: 'Debug' }
+];
 export type StatusTone = 'positive' | 'warning' | 'progress' | 'neutral' | 'error';
 
 export type AppStatusView = {
@@ -11,7 +17,6 @@ export type AppStatusView = {
 	title: string;
 	detail: string;
 	badge: string | null;
-	showHotkey: boolean;
 };
 
 const preparingStatuses: WorkerRuntimeBootstrapStatus[] = [
@@ -55,8 +60,7 @@ export const selectAppStatus = (
 			detail: failedModel
 				? `${failedModel.label} could not be prepared.`
 				: 'The transcription runtime could not be prepared.',
-			badge: null,
-			showHotkey: false
+			badge: null
 		};
 	}
 
@@ -66,8 +70,7 @@ export const selectAppStatus = (
 			tone: 'progress',
 			title: `Downloading ${downloading.label}`,
 			detail: 'Installing the model on this device.',
-			badge: null,
-			showHotkey: false
+			badge: null
 		};
 	}
 
@@ -77,8 +80,7 @@ export const selectAppStatus = (
 			tone: 'progress',
 			title: `Activating ${activatingModel.label}`,
 			detail: 'This model will become active when it is ready.',
-			badge: null,
-			showHotkey: false
+			badge: null
 		};
 	}
 
@@ -89,8 +91,7 @@ export const selectAppStatus = (
 				? `Preparing ${modelLabel(snapshot, snapshot.loadedModelId)}`
 				: 'Preparing transcription',
 			detail: 'Aywa is getting the local runtime ready.',
-			badge: null,
-			showHotkey: false
+			badge: null
 		};
 	}
 
@@ -101,8 +102,7 @@ export const selectAppStatus = (
 				title: 'Ready — CPU mode',
 				detail:
 					'Dictation may be slower. NVIDIA users can set up CUDA for faster transcription.',
-				badge: 'CPU',
-				showHotkey: true
+				badge: 'CPU'
 			};
 		}
 
@@ -111,8 +111,7 @@ export const selectAppStatus = (
 				tone: 'positive',
 				title: 'Ready to dictate',
 				detail: 'NVIDIA GPU acceleration is active.',
-				badge: 'GPU',
-				showHotkey: true
+				badge: 'GPU'
 			};
 		}
 
@@ -120,8 +119,7 @@ export const selectAppStatus = (
 			tone: 'positive',
 			title: 'Ready to dictate',
 			detail: 'Transcription is ready.',
-			badge: null,
-			showHotkey: true
+			badge: null
 		};
 	}
 
@@ -129,7 +127,6 @@ export const selectAppStatus = (
 		tone: 'neutral',
 		title: 'Choose a model to get started',
 		detail: 'Download a model below, then activate it for dictation.',
-		badge: null,
-		showHotkey: false
+		badge: null
 	};
 };

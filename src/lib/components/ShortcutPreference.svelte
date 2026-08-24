@@ -73,52 +73,84 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class:capturing class="hotkey">
-	<div class="shortcut-copy">
-		{#if capturing}
-			<strong class="capture-prompt">Press your shortcut…</strong>
-			<span>Include Ctrl, Alt, Shift, or the Windows key. Press Escape to cancel.</span>
-		{:else}
-			<span class="keycaps" aria-label={`Current shortcut: ${labels.join(' plus ')}`}>
-				{#each labels as label, index}
-					{#if index > 0}<span class="plus" aria-hidden="true">+</span>{/if}
-					<kbd>{label}</kbd>
-				{/each}
-			</span>
-			<span>Hold, speak, then release.</span>
-		{/if}
+<section class="shortcut-preference" aria-labelledby="shortcut-preference-heading">
+	<div class="preference-heading">
+		<h2 id="shortcut-preference-heading">Dictation shortcut</h2>
+		<p>Choose the keys you hold while speaking.</p>
 	</div>
 
-	<div class="shortcut-actions">
-		{#if !loaded}
-			<button type="button" disabled={saving} onclick={() => void loadShortcut()}>Retry</button>
-		{:else}
-			<button type="button" disabled={saving || capturing} onclick={beginCapture}
-				>Change shortcut</button
-			>
-			<button
-				type="button"
-				disabled={saving || capturing || confirmed === DEFAULT_HOTKEY}
-				onclick={() => void apply(DEFAULT_HOTKEY)}>Reset to default</button
-			>
-		{/if}
-	</div>
-</div>
+	<div class:capturing class="hotkey">
+		<div class="shortcut-copy">
+			{#if capturing}
+				<strong class="capture-prompt">Press your shortcut…</strong>
+				<span>Include Ctrl, Alt, Shift, or the Windows key. Press Escape to cancel.</span>
+			{:else}
+				<span class="keycaps" aria-label={`Current shortcut: ${labels.join(' plus ')}`}>
+					{#each labels as label, index}
+						{#if index > 0}<span class="plus" aria-hidden="true">+</span>{/if}
+						<kbd>{label}</kbd>
+					{/each}
+				</span>
+				<span>Hold, speak, then release.</span>
+			{/if}
+		</div>
 
-{#if saving}
-	<p class="shortcut-status" role="status">Saving shortcut…</p>
-{/if}
-{#if error}
-	<p class="shortcut-error" role="alert">{error}</p>
-{/if}
+		<div class="shortcut-actions">
+			{#if !loaded}
+				<button type="button" disabled={saving} onclick={() => void loadShortcut()}>Retry</button>
+			{:else}
+				<button type="button" disabled={saving || capturing} onclick={beginCapture}
+					>Change shortcut</button
+				>
+				<button
+					type="button"
+					disabled={saving || capturing || confirmed === DEFAULT_HOTKEY}
+					onclick={() => void apply(DEFAULT_HOTKEY)}>Reset to default</button
+				>
+			{/if}
+		</div>
+	</div>
+
+	{#if saving}
+		<p class="shortcut-status" role="status">Saving shortcut…</p>
+	{/if}
+	{#if error}
+		<p class="shortcut-error" role="alert">{error}</p>
+	{/if}
+</section>
 
 <style>
+	.shortcut-preference {
+		display: grid;
+		gap: 0.75rem;
+		border: 1px solid #50534f;
+		border-radius: 0.75rem;
+		padding: 0.85rem;
+		background: #1b1c1b;
+	}
+
+	.preference-heading h2,
+	.preference-heading p {
+		margin: 0;
+	}
+
+	.preference-heading h2 {
+		font-size: 14px;
+	}
+
+	.preference-heading p {
+		margin-top: 0.3rem;
+		color: #bfc1bc;
+		font-size: 12px;
+		line-height: 1.45;
+	}
+
 	.hotkey {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.85rem;
-		margin-top: 1rem;
+		margin-top: 0;
 		border: 1px solid transparent;
 		border-radius: 0.5rem;
 		padding: 0.65rem 0.75rem;

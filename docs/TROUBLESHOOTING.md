@@ -23,12 +23,12 @@ The first model activation may install Python, PyTorch, NVIDIA/CPU runtime packa
 
 ## The shortcut does nothing
 
-Aywa uses `Ctrl` + `Alt` + `Space` as its default hold-to-talk shortcut. The active shortcut is shown on the **App** tab.
+Aywa uses `Ctrl` + `Alt` + `Space` as its default hold-to-talk shortcut. The active shortcut is shown on the **Settings** tab.
 
 - Confirm the App status says **Ready to dictate** and a model is **Active**.
-- Hold the shortcut shown on the App tab rather than tapping it, speak, and then release it.
+- Hold the shortcut shown on the Settings tab rather than tapping it, speak, and then release it.
 - If Aywa reports that a new shortcut is unavailable, close software that may own it or choose a different combination. The previous shortcut remains active.
-- Choose **Reset to default** on the App tab to restore `Ctrl` + `Alt` + `Space`.
+- Choose **Reset to default** on the Settings tab to restore `Ctrl` + `Alt` + `Space`.
 - If the shortcut never works, open the debug log and look for `failed to register global hotkey`.
 
 ## Aywa cannot record the microphone

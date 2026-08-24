@@ -17,6 +17,7 @@
 		executionDeviceLabel,
 		modelLabel,
 		selectAppStatus,
+		SETTINGS_TABS,
 		valueOrFallback,
 		type SettingsTab
 	} from './settingsView';
@@ -186,30 +187,16 @@
 				<strong>Aywa</strong>
 			</div>
 			<div class="tabs" aria-label="Settings sections" role="tablist">
-				<button
-					type="button"
-					class:active={activeTab === 'app'}
-					role="tab"
-					aria-selected={activeTab === 'app'}
-					aria-controls="app-panel"
-					onclick={() => (activeTab = 'app')}>App</button
-				>
-				<button
-					type="button"
-					class:active={activeTab === 'history'}
-					role="tab"
-					aria-selected={activeTab === 'history'}
-					aria-controls="history-panel"
-					onclick={() => (activeTab = 'history')}>History</button
-				>
-				<button
-					type="button"
-					class:active={activeTab === 'debug'}
-					role="tab"
-					aria-selected={activeTab === 'debug'}
-					aria-controls="debug-panel"
-					onclick={() => (activeTab = 'debug')}>Debug</button
-				>
+				{#each SETTINGS_TABS as tab}
+					<button
+						type="button"
+						class:active={activeTab === tab.id}
+						role="tab"
+						aria-selected={activeTab === tab.id}
+						aria-controls={`${tab.id}-panel`}
+						onclick={() => (activeTab = tab.id)}>{tab.label}</button
+					>
+				{/each}
 			</div>
 			<div class="header-spacer" aria-hidden="true"></div>
 		</header>
@@ -265,9 +252,6 @@
 						{#if appStatus.badge}<span class="status-badge">{appStatus.badge}</span>{/if}
 					</div>
 
-					{#if appStatus.showHotkey}
-						<ShortcutPreference />
-					{/if}
 				</section>
 
 				<section class="models-section" aria-labelledby="models-heading">
@@ -326,8 +310,6 @@
 					</div>
 				</section>
 
-				<HistoryPreference />
-
 				{#if actionError}
 					<p class="app-action-error" role="status">
 						That action could not be completed. <button type="button" onclick={() => (activeTab = 'debug')}
@@ -346,8 +328,13 @@
 					>Need help setting up Aywa?</a
 				>
 			</div>
+		{:else if activeTab === 'settings'}
+			<div class="content preferences-content" id="settings-panel" role="tabpanel">
+				<ShortcutPreference />
+				<HistoryPreference />
+			</div>
 		{:else if activeTab === 'history'}
-			<div class="content history-content">
+			<div class="content history-content" id="history-panel" role="tabpanel">
 				<History />
 			</div>
 		{:else}
@@ -519,6 +506,12 @@
 		flex: 1;
 		overflow-y: auto;
 		padding: 1.25rem;
+	}
+
+	.preferences-content {
+		display: grid;
+		align-content: start;
+		gap: 1rem;
 	}
 
 	.settings-footer {
