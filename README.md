@@ -8,7 +8,7 @@ Aywa is a Windows desktop app for local voice typing. Hold a global shortcut, sp
 
 - Runs speech recognition locally after the required runtime and model files are installed.
 - Supports English and multilingual NVIDIA Parakeet models.
-- Uses `Ctrl` + `Alt` + `Space` as a hold-to-talk shortcut.
+- Uses `Ctrl` + `Alt` + `Space` as the default hold-to-talk shortcut and lets you change it in Settings.
 - Automatically selects a compatible CPU or NVIDIA CUDA runtime.
 - Lives in the Windows system tray when its Settings window is closed.
 - Provides runtime, GPU, model, and log diagnostics for support.

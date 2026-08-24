@@ -24,7 +24,7 @@ use crate::{
         types::ModelId,
     },
     runtime_profile::types::RuntimeSelectionMode,
-    settings::{AppSettings, AppSettingsState, SettingsRepository},
+    settings::{AppSettings, AppSettingsState, SettingsRepository, DEFAULT_HOTKEY},
     state::{AppState, AppStateManager},
 };
 
@@ -113,6 +113,62 @@ pub fn set_save_history<R: Runtime>(
     save_history: bool,
 ) -> Result<AppSettings, String> {
     state.set_save_history(&SettingsRepository::new(settings_path(app)?), save_history)
+}
+
+pub fn set_hotkey<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppSettingsState,
+    hotkey_value: String,
+) -> Result<AppSettings, String> {
+    if app.state::<AppStateManager>().current() != AppState::Ready {
+        return Err("Wait for the current recording or transcription to finish".to_string());
+    }
+
+    let handles = app.state::<RuntimeHandles>();
+    let mut handle = handles
+        .hotkey
+        .lock()
+        .map_err(|_| "hotkey mutex poisoned".to_string())?;
+    let handle = handle
+        .as_mut()
+        .ok_or_else(|| "The global shortcut is currently unavailable".to_string())?;
+    let repository = SettingsRepository::new(settings_path(app)?);
+    let mut confirmed = None;
+
+    let cleanup_warning = handle.replace_with(&hotkey_value, |normalized| {
+        let settings = state.set_hotkey(&repository, normalized.to_string())?;
+        confirmed = Some(settings);
+        Ok(())
+    })?;
+    if let Some(error) = cleanup_warning {
+        diagnostics::log(format!(
+            "[hotkey] previous registration cleanup failed: {error}"
+        ));
+    }
+
+    confirmed.ok_or_else(|| "Shortcut settings were not confirmed".to_string())
+}
+
+pub fn register_startup_hotkey<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppSettingsState,
+    settings: &AppSettings,
+) -> Result<hotkey::HotkeyHandle, String> {
+    match hotkey::register(app.clone(), &settings.hotkey) {
+        Ok(handle) => Ok(handle),
+        Err(error) if settings.hotkey == DEFAULT_HOTKEY => Err(error),
+        Err(error) => {
+            diagnostics::log(format!(
+                "[hotkey] saved shortcut unavailable; trying default: {error}"
+            ));
+            let fallback = hotkey::register(app.clone(), DEFAULT_HOTKEY)?;
+            state.set_hotkey(
+                &SettingsRepository::new(settings_path(app)?),
+                DEFAULT_HOTKEY.to_string(),
+            )?;
+            Ok(fallback)
+        }
+    }
 }
 
 pub fn list_history<R: Runtime>(

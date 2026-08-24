@@ -122,6 +122,15 @@ fn set_save_history(
 }
 
 #[tauri::command]
+fn set_hotkey(
+    app: AppHandle,
+    state: State<'_, AppSettingsState>,
+    hotkey: String,
+) -> Result<AppSettings, String> {
+    aywa_lib::set_hotkey(&app, state.inner(), hotkey)
+}
+
+#[tauri::command]
 fn list_models(app: AppHandle, state: State<'_, ModelManagerState>) -> ModelManagerSnapshot {
     aywa_lib::list_models(&app, state.inner())
 }
@@ -251,7 +260,8 @@ fn main() {
             }
 
             let settings_state: State<'_, AppSettingsState> = app.state();
-            aywa_lib::startup_app_settings(&app.handle(), settings_state.inner());
+            let app_settings =
+                aywa_lib::startup_app_settings(&app.handle(), settings_state.inner());
 
             if let Err(error) = aywa_lib::cleanup_recordings_on_startup(&app.handle()) {
                 aywa_lib::diagnostics::log(format!("[recordings] startup cleanup failed: {error}"));
@@ -263,7 +273,11 @@ fn main() {
             aywa_lib::configure_windows(&app.handle())?;
             build_tray(&app.handle())?;
 
-            match aywa_lib::hotkey::register(app.handle().clone()) {
+            match aywa_lib::register_startup_hotkey(
+                &app.handle(),
+                settings_state.inner(),
+                &app_settings,
+            ) {
                 Ok(handle) => {
                     let runtime_handles: State<'_, RuntimeHandles> = app.state();
                     *runtime_handles
@@ -295,6 +309,7 @@ fn main() {
             clear_history,
             get_app_settings,
             set_save_history,
+            set_hotkey,
             show_overlay,
             hide_overlay,
             toggle_overlay,

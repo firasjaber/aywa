@@ -10,12 +10,14 @@ use windows_sys::Win32::Storage::FileSystem::{
 };
 
 pub const SETTINGS_SCHEMA_VERSION: u32 = 1;
+pub const DEFAULT_HOTKEY: &str = "control+alt+Space";
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
     pub version: u32,
     pub save_history: bool,
+    pub hotkey: String,
 }
 
 impl Default for AppSettings {
@@ -23,6 +25,7 @@ impl Default for AppSettings {
         Self {
             version: SETTINGS_SCHEMA_VERSION,
             save_history: true,
+            hotkey: DEFAULT_HOTKEY.to_string(),
         }
     }
 }
@@ -112,6 +115,22 @@ impl AppSettingsState {
         *current = next.clone();
         Ok(next)
     }
+
+    pub fn set_hotkey(
+        &self,
+        repository: &SettingsRepository,
+        hotkey: String,
+    ) -> Result<AppSettings, String> {
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|_| "app settings mutex poisoned".to_string())?;
+        let mut next = current.clone();
+        next.hotkey = hotkey;
+        repository.save(&next)?;
+        *current = next.clone();
+        Ok(next)
+    }
 }
 
 fn atomic_write(path: &Path, contents: &[u8]) -> Result<(), String> {
@@ -145,13 +164,16 @@ fn atomic_write(path: &Path, contents: &[u8]) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppSettings, AppSettingsState, SettingsRepository, SETTINGS_SCHEMA_VERSION};
+    use super::{
+        AppSettings, AppSettingsState, SettingsRepository, DEFAULT_HOTKEY, SETTINGS_SCHEMA_VERSION,
+    };
 
     #[test]
     fn defaults_enable_history_saving() {
         let settings = AppSettings::default();
         assert_eq!(settings.version, SETTINGS_SCHEMA_VERSION);
         assert!(settings.save_history);
+        assert_eq!(settings.hotkey, DEFAULT_HOTKEY);
     }
 
     #[test]
@@ -183,6 +205,35 @@ mod tests {
     }
 
     #[test]
+    fn settings_without_hotkey_keep_history_and_use_default_shortcut() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("state/settings.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, r#"{"version":1,"saveHistory":false}"#).unwrap();
+
+        let loaded = SettingsRepository::new(path).load().unwrap();
+        assert!(!loaded.save_history);
+        assert_eq!(loaded.hotkey, DEFAULT_HOTKEY);
+    }
+
+    #[test]
+    fn custom_hotkey_round_trips_in_the_shared_settings_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("state/settings.json");
+        let repository = SettingsRepository::new(path.clone());
+        let settings = AppSettings {
+            hotkey: "control+shift+KeyD".to_string(),
+            ..AppSettings::default()
+        };
+
+        repository.save(&settings).unwrap();
+        assert_eq!(repository.load().unwrap(), settings);
+        let contents = std::fs::read_to_string(path).unwrap();
+        assert!(contents.contains(r#""saveHistory": true"#));
+        assert!(contents.contains(r#""hotkey": "control+shift+KeyD""#));
+    }
+
+    #[test]
     fn invalid_json_and_unknown_versions_are_rejected() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("state/settings.json");
@@ -206,5 +257,21 @@ mod tests {
         let state = AppSettingsState::default();
         assert!(state.set_save_history(&repository, false).is_err());
         assert!(state.current().unwrap().save_history);
+    }
+
+    #[test]
+    fn failed_hotkey_save_keeps_confirmed_in_memory_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let blocked = directory.path().join("state");
+        std::fs::write(&blocked, "blocks directory creation").unwrap();
+        let state = AppSettingsState::default();
+
+        assert!(state
+            .set_hotkey(
+                &SettingsRepository::new(blocked.join("settings.json")),
+                "control+shift+KeyD".to_string(),
+            )
+            .is_err());
+        assert_eq!(state.current().unwrap().hotkey, DEFAULT_HOTKEY);
     }
 }

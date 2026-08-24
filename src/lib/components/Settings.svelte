@@ -3,6 +3,7 @@
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import History from './History.svelte';
 	import HistoryPreference from './HistoryPreference.svelte';
+	import ShortcutPreference from './ShortcutPreference.svelte';
 	import {
 		downloadModel,
 		loadModel,
@@ -265,10 +266,7 @@
 					</div>
 
 					{#if appStatus.showHotkey}
-						<div class="hotkey">
-							<span><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd></span>
-							<span>Hold, speak, then release.</span>
-						</div>
+						<ShortcutPreference />
 					{/if}
 				</section>
 
@@ -703,28 +701,6 @@
 		background: #1c2019;
 		padding: 0.25rem 0.5rem;
 		color: #d4ee9d;
-	}
-
-	.hotkey {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		margin-top: 1rem;
-		border-radius: 0.5rem;
-		padding: 0.65rem 0.75rem;
-		background: #171817;
-		color: #bbbdb9;
-		font-size: 12px;
-	}
-
-	kbd {
-		border: 1px solid #686b66;
-		border-radius: 0.25rem;
-		padding: 0.12rem 0.35rem;
-		background: #303230;
-		color: #e3e4df;
-		font: inherit;
-		font-weight: 700;
 	}
 
 	.models-section {

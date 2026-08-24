@@ -70,6 +70,12 @@ Aywa copies the result to the Windows clipboard and then tries to paste it into 
 
 The small overlay shows whether Aywa is listening, transcribing, finished, or encountered a problem. For best results, speak clearly and avoid very short or silent recordings.
 
+### Change the dictation shortcut
+
+Open the **App** tab and choose **Change shortcut**, then press a keyboard combination containing at least one modifier (`Ctrl`, `Alt`, `Shift`, or the Windows key) and one other key. The new shortcut takes effect as soon as Aywa confirms it. Press `Escape` while recording a shortcut to cancel without changing anything.
+
+If Windows or another application already owns the combination, Aywa keeps the previous shortcut active and asks you to choose another one. Choose **Reset to default** to restore `Ctrl` + `Alt` + `Space`.
+
 ## Review transcription history
 
 Every successful transcription is saved automatically in the local **History** tab by default. To stop saving future transcription text, open the **App** tab and turn off **Save transcriptions to History**. Dictation still copies and attempts to paste text while this setting is off. Existing History remains until you delete individual entries or use **Clear all history**.
