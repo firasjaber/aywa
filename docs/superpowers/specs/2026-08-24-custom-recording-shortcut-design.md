@@ -32,7 +32,7 @@ A representative settings file is:
 
 The Rust backend remains authoritative for parsing, normalizing, validating, registering, and persisting shortcuts. Frontend validation exists for fast feedback but is not trusted as the final validation boundary.
 
-The hotkey module owns a live `GlobalHotKeyManager` and the currently registered `HotKey`. Its event handler compares incoming event IDs with the active shortcut and continues to route press and release events to `start_recording` and `stop_recording`.
+The hotkey module owns a live `GlobalHotKeyManager`, the currently registered shortcuts, and a separately tracked active shortcut ID. Its event handler routes press and release events to `start_recording` and `stop_recording` only when an event ID matches the active shortcut ID. Registering a candidate with Windows therefore does not make it an Aywa trigger by itself.
 
 Startup loads `AppSettings` before hotkey registration and attempts to register the saved shortcut. If the saved value cannot be parsed or registered, Aywa logs a sanitized error and attempts to register the default shortcut. When the fallback succeeds, Aywa updates the in-memory setting and atomically persists the default so the UI, active registration, and shared settings file agree. The app continues running even if both registrations fail, matching current startup behavior.
 
@@ -41,12 +41,12 @@ A new Tauri command accepts a shortcut string and applies it transactionally:
 1. Parse and normalize the proposed shortcut.
 2. Require at least one supported modifier and one non-modifier key.
 3. If it is already active, persist its normalized form and return the current settings.
-4. Register the proposed shortcut while the previous shortcut remains active.
-5. Unregister the previous shortcut.
-6. Save the updated `AppSettings` to the existing `state/settings.json`.
-7. Update the in-memory settings and active shortcut only after registration and persistence succeed.
+4. Register the proposed shortcut as an inactive candidate while the previous shortcut remains the only active trigger.
+5. Save the updated `AppSettings` to the existing `state/settings.json`.
+6. Update the in-memory settings and active shortcut ID only after both candidate registration and persistence succeed.
+7. Unregister the previous shortcut after the active ID has switched. If this cleanup fails, its events remain ignored because it is no longer the active ID; process exit releases the stale operating-system registration.
 
-If registration fails, the old shortcut remains active and settings remain unchanged. If unregistering the old shortcut or saving settings fails, Aywa unregisters the proposed shortcut and restores the old registration. The command returns a user-readable error without claiming the new shortcut is active.
+If candidate registration or settings persistence fails, Aywa unregisters the candidate and leaves the previous registration, active shortcut ID, in-memory settings, and persisted settings unchanged. The command returns a user-readable error without claiming the new shortcut is active. At no point can a rejected or unsaved candidate start or stop recording.
 
 The reset action calls the same command with the default shortcut; it does not have a separate persistence path.
 
@@ -90,8 +90,8 @@ On change:
 ## Error Handling
 
 - Invalid or unmodified chords are rejected without touching registration or disk state.
-- Shortcut conflicts retain the previous working shortcut and settings.
-- Persistence failures trigger registration rollback and retain the previous in-memory settings.
+- Shortcut conflicts remove the inactive candidate and retain the previous working shortcut and settings.
+- Persistence failures remove the inactive candidate and retain the previous registration, active shortcut ID, in-memory settings, and JSON contents.
 - Startup parse or registration failures fall back to `Ctrl+Alt+Space`; a successful fallback is saved so Aywa does not display or retry a shortcut that is not active.
 - Errors shown in Settings avoid exposing local paths or internal command details.
 
