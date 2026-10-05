@@ -3,10 +3,11 @@ import type {
 	WorkerRuntimeBootstrapStatus
 } from '$lib/stores/modelManager';
 
-export type SettingsTab = 'app' | 'settings' | 'history' | 'debug';
+export type SettingsTab = 'app' | 'settings' | 'rules' | 'history' | 'debug';
 export const SETTINGS_TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
 	{ id: 'app', label: 'App' },
 	{ id: 'settings', label: 'Settings' },
+	{ id: 'rules', label: 'Rules' },
 	{ id: 'history', label: 'History' },
 	{ id: 'debug', label: 'Debug' }
 ];

@@ -12,6 +12,7 @@ pub mod runtime_profile;
 pub mod settings;
 pub mod state;
 pub mod transcribe;
+pub mod transcription_rules;
 
 use std::{path::PathBuf, thread, time::Duration};
 
@@ -24,7 +25,9 @@ use crate::{
         types::ModelId,
     },
     runtime_profile::types::RuntimeSelectionMode,
-    settings::{AppSettings, AppSettingsState, SettingsRepository, DEFAULT_HOTKEY},
+    settings::{
+        AppSettings, AppSettingsState, SettingsRepository, TranscriptionRule, DEFAULT_HOTKEY,
+    },
     state::{AppState, AppStateManager},
 };
 
@@ -113,6 +116,14 @@ pub fn set_save_history<R: Runtime>(
     save_history: bool,
 ) -> Result<AppSettings, String> {
     state.set_save_history(&SettingsRepository::new(settings_path(app)?), save_history)
+}
+
+pub fn set_rules<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppSettingsState,
+    rules: Vec<TranscriptionRule>,
+) -> Result<AppSettings, String> {
+    state.set_rules(&SettingsRepository::new(settings_path(app)?), rules)
 }
 
 pub fn set_hotkey<R: Runtime>(
@@ -267,29 +278,37 @@ pub fn stop_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
 
             match transcribe::transcribe_file(app, &result.path) {
                 Ok(transcription) => {
-                    let save_history = app
-                        .state::<AppSettingsState>()
-                        .current()
-                        .map(|settings| settings.save_history)
-                        .unwrap_or_else(|error| {
-                            diagnostics::log(format!(
-                                "[settings] read failed; skipping history save: {error}"
-                            ));
-                            false
-                        });
+                    let settings =
+                        app.state::<AppSettingsState>()
+                            .current()
+                            .unwrap_or_else(|error| {
+                                diagnostics::log(format!(
+                                    "[settings] read failed; skipping history save: {error}"
+                                ));
+                                AppSettings {
+                                    save_history: false,
+                                    ..AppSettings::default()
+                                }
+                            });
+                    let text =
+                        transcription_rules::apply_rules(&transcription.text, &settings.rules);
+                    if text.is_empty() {
+                        transition_to(
+                            app,
+                            AppState::Completed,
+                            Some("No text after applying Rules".to_string()),
+                        )?;
+                        schedule_reset(app.clone(), ERROR_RESET_DELAY_MS);
+                        return Ok(());
+                    }
                     if let Err(error) = history_dir(app).and_then(|directory| {
                         history::HistoryRepository::new(directory)
-                            .save_if_enabled(
-                                save_history,
-                                &transcription.text,
-                                result.duration_ms,
-                                None,
-                            )
+                            .save_if_enabled(settings.save_history, &text, result.duration_ms, None)
                             .map(|_| ())
                     }) {
                         diagnostics::log(format!("[history] save failed: {error}"));
                     }
-                    clipboard::copy_text(&transcription.text)?;
+                    clipboard::copy_text(&text)?;
 
                     let completed_message = if clipboard::paste_clipboard().is_ok() {
                         "Pasted".to_string()

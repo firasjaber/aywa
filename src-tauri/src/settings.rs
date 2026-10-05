@@ -13,11 +13,19 @@ pub const SETTINGS_SCHEMA_VERSION: u32 = 1;
 pub const DEFAULT_HOTKEY: &str = "control+alt+Space";
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscriptionRule {
+    pub heard_as: String,
+    pub use_instead: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
     pub version: u32,
     pub save_history: bool,
     pub hotkey: String,
+    pub rules: Vec<TranscriptionRule>,
 }
 
 impl Default for AppSettings {
@@ -26,6 +34,7 @@ impl Default for AppSettings {
             version: SETTINGS_SCHEMA_VERSION,
             save_history: true,
             hotkey: DEFAULT_HOTKEY.to_string(),
+            rules: Vec::new(),
         }
     }
 }
@@ -131,6 +140,37 @@ impl AppSettingsState {
         *current = next.clone();
         Ok(next)
     }
+
+    pub fn set_rules(
+        &self,
+        repository: &SettingsRepository,
+        mut rules: Vec<TranscriptionRule>,
+    ) -> Result<AppSettings, String> {
+        let mut seen = std::collections::HashSet::new();
+        for rule in &mut rules {
+            rule.heard_as = rule.heard_as.trim().to_string();
+            if rule.heard_as.is_empty() {
+                return Err("Heard as cannot be empty".to_string());
+            }
+            if !seen.insert(rule.heard_as.to_lowercase()) {
+                return Err("Heard as values must be unique".to_string());
+            }
+            regex::RegexBuilder::new(&regex::escape(&rule.heard_as))
+                .case_insensitive(true)
+                .build()
+                .map_err(|_| "Heard as is too long".to_string())?;
+        }
+
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|_| "app settings mutex poisoned".to_string())?;
+        let mut next = current.clone();
+        next.rules = rules;
+        repository.save(&next)?;
+        *current = next.clone();
+        Ok(next)
+    }
 }
 
 fn atomic_write(path: &Path, contents: &[u8]) -> Result<(), String> {
@@ -165,7 +205,8 @@ fn atomic_write(path: &Path, contents: &[u8]) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AppSettings, AppSettingsState, SettingsRepository, DEFAULT_HOTKEY, SETTINGS_SCHEMA_VERSION,
+        AppSettings, AppSettingsState, SettingsRepository, TranscriptionRule, DEFAULT_HOTKEY,
+        SETTINGS_SCHEMA_VERSION,
     };
 
     #[test]
@@ -174,6 +215,7 @@ mod tests {
         assert_eq!(settings.version, SETTINGS_SCHEMA_VERSION);
         assert!(settings.save_history);
         assert_eq!(settings.hotkey, DEFAULT_HOTKEY);
+        assert!(settings.rules.is_empty());
     }
 
     #[test]
@@ -214,6 +256,7 @@ mod tests {
         let loaded = SettingsRepository::new(path).load().unwrap();
         assert!(!loaded.save_history);
         assert_eq!(loaded.hotkey, DEFAULT_HOTKEY);
+        assert!(loaded.rules.is_empty());
     }
 
     #[test]
@@ -273,5 +316,58 @@ mod tests {
             )
             .is_err());
         assert_eq!(state.current().unwrap().hotkey, DEFAULT_HOTKEY);
+    }
+
+    #[test]
+    fn rules_round_trip_and_reject_invalid_edits_without_changing_confirmed_state() {
+        let directory = tempfile::tempdir().unwrap();
+        let repository = SettingsRepository::new(directory.path().join("state/settings.json"));
+        let state = AppSettingsState::default();
+        let rule = TranscriptionRule {
+            heard_as: "Hawfa".to_string(),
+            use_instead: "Haufe".to_string(),
+        };
+        state.set_rules(&repository, vec![rule.clone()]).unwrap();
+        assert_eq!(repository.load().unwrap().rules, vec![rule.clone()]);
+        assert!(state
+            .set_rules(
+                &repository,
+                vec![
+                    rule.clone(),
+                    TranscriptionRule {
+                        heard_as: "hawfa".to_string(),
+                        use_instead: String::new(),
+                    },
+                ],
+            )
+            .is_err());
+        assert!(state
+            .set_rules(
+                &repository,
+                vec![TranscriptionRule {
+                    heard_as: " ".to_string(),
+                    use_instead: String::new(),
+                }],
+            )
+            .is_err());
+        assert_eq!(state.current().unwrap().rules, vec![rule]);
+    }
+
+    #[test]
+    fn failed_rule_save_keeps_confirmed_state() {
+        let directory = tempfile::tempdir().unwrap();
+        let blocked = directory.path().join("state");
+        std::fs::write(&blocked, "blocks directory creation").unwrap();
+        let state = AppSettingsState::default();
+        assert!(state
+            .set_rules(
+                &SettingsRepository::new(blocked.join("settings.json")),
+                vec![TranscriptionRule {
+                    heard_as: "uhm".to_string(),
+                    use_instead: String::new(),
+                }],
+            )
+            .is_err());
+        assert!(state.current().unwrap().rules.is_empty());
     }
 }

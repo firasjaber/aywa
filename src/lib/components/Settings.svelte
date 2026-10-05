@@ -3,6 +3,7 @@
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import History from './History.svelte';
 	import HistoryPreference from './HistoryPreference.svelte';
+	import Rules from './Rules.svelte';
 	import ShortcutPreference from './ShortcutPreference.svelte';
 	import {
 		downloadModel,
@@ -332,6 +333,10 @@
 			<div class="content preferences-content" id="settings-panel" role="tabpanel">
 				<ShortcutPreference />
 				<HistoryPreference />
+			</div>
+		{:else if activeTab === 'rules'}
+			<div class="content" id="rules-panel" role="tabpanel">
+				<Rules />
 			</div>
 		{:else if activeTab === 'history'}
 			<div class="content history-content" id="history-panel" role="tabpanel">

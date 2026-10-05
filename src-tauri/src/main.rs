@@ -16,7 +16,7 @@ use aywa_lib::{
         types::ModelId,
     },
     runtime_profile::types::RuntimeSelectionMode,
-    settings::{AppSettings, AppSettingsState},
+    settings::{AppSettings, AppSettingsState, TranscriptionRule},
     state::AppStateManager,
     RuntimeHandles,
 };
@@ -119,6 +119,15 @@ fn set_save_history(
     save_history: bool,
 ) -> Result<AppSettings, String> {
     aywa_lib::set_save_history(&app, state.inner(), save_history)
+}
+
+#[tauri::command]
+fn set_rules(
+    app: AppHandle,
+    state: State<'_, AppSettingsState>,
+    rules: Vec<TranscriptionRule>,
+) -> Result<AppSettings, String> {
+    aywa_lib::set_rules(&app, state.inner(), rules)
 }
 
 #[tauri::command]
@@ -309,6 +318,7 @@ fn main() {
             clear_history,
             get_app_settings,
             set_save_history,
+            set_rules,
             set_hotkey,
             show_overlay,
             hide_overlay,

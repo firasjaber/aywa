@@ -76,6 +76,12 @@ Open the **Settings** tab and choose **Change shortcut**, then press a keyboard 
 
 If Windows or another application already owns the combination, Aywa keeps the previous shortcut active and asks you to choose another one. Choose **Reset to default** to restore `Ctrl` + `Alt` + `Space`.
 
+## Correct or remove words
+
+Open the **Rules** tab to add words or phrases that Aywa often transcribes incorrectly. Enter the recognized text under **Heard as** and the text you want under **Use instead**. For example, enter `Hawfa` and `Haufe` to correct that name. Leave **Use instead** empty to remove a filler word such as `uhm`. Select **Save rules** after you add, edit, or delete a row.
+
+Rules match complete words or phrases without regard to letter case. Aywa uses the replacement text exactly as you enter it. Deletions also tidy nearby spaces and punctuation. Rules are saved on your computer and apply to new dictations before Aywa saves to History, copies, or pastes the text. Existing History entries do not change. If rules remove all text, Aywa shows **No text after applying Rules** and leaves History, the clipboard, and the active app unchanged.
+
 ## Review transcription history
 
 Every successful transcription is saved automatically in the local **History** tab by default. To stop saving future transcription text, open the **Settings** tab and turn off **Save transcriptions to History**. Dictation still copies and attempts to paste text while this setting is off. Existing History remains until you delete individual entries or use **Clear all history**.
@@ -91,6 +97,8 @@ Aywa stores a temporary WAV only while it transcribes your speech locally, then 
 Click the Aywa icon in the Windows system tray, or right-click it and choose **Settings**. Use:
 
 - **App** to see readiness and manage models.
+- **Settings** to change the dictation shortcut and History preference.
+- **Rules** to correct or remove words in future dictations.
 - **History** to browse locally saved transcriptions.
 - **Debug** to inspect the system, acceleration, runtime, and model status or locate the debug log.
 

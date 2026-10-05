@@ -21,6 +21,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+regex = "1"
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 global-hotkey = "0.6"
 arboard = "3"
