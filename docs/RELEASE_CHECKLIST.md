@@ -27,7 +27,7 @@ without exposing the key in command output.
 - Confirm the tracked checkout is clean and `package.json`, `package-lock.json`,
   `src-tauri/Cargo.toml`, the Aywa entry in `src-tauri/Cargo.lock`, and
   `src-tauri/tauri.conf.json` all say the intended version.
-- Run `npm.cmd run verify:release-policy -- --tag v0.3.1`, `npm.cmd run check`, `npm.cmd run test`,
+- Run `npm.cmd run verify:release-policy -- --tag v0.3.2`, `npm.cmd run check`, `npm.cmd run test`,
   `npm.cmd run build`,
   `node --test scripts/prepare-update-assets.test.mjs scripts/verify-release-policy.test.mjs`,
   `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`,
@@ -45,12 +45,12 @@ without exposing the key in command output.
 ## Create a release
 
 After pushing the release commit, create and push the immutable annotated tag
-for that version. For version `0.3.1`:
+for that version. For version `0.3.2`:
 
 ```powershell
 git status
-git tag -a v0.3.1 -m "Aywa 0.3.1"
-git push origin v0.3.1
+git tag -a v0.3.2 -m "Aywa 0.3.2"
+git push origin v0.3.2
 ```
 
 The workflow checks the tag and manifest versions, runs tests, prepares locked
@@ -62,7 +62,7 @@ For the upgrade check, it builds an unpublished `0.0.0` baseline with update
 artifacts disabled. On the isolated GitHub-hosted Windows runner,
 `scripts/smoke-test-update.ps1` installs that baseline, seeds settings, rules,
 History, and model/runtime sentinel files, then upgrades with `/S /UPDATE /R`.
-It verifies the executable version, app restart, and unchanged seeded data.
+It verifies the numeric Windows executable version, app restart, and unchanged seeded data.
 This checks the NSIS upgrade path; it does not simulate clicking the footer.
 Do not run this installer test on a user's machine or reuse an active data folder.
 
@@ -74,7 +74,7 @@ The manifest contains a stable version and a `windows-x86_64` entry with the
 release-specific HTTPS installer URL and its complete signature.
 
 Public tags are permanent release identifiers. If a published tag is wrong,
-fix the release and publish a new patch version such as `v0.3.2`.
+fix the release and publish a new patch version such as `v0.3.3`.
 
 ## Verify the published release
 
@@ -83,7 +83,7 @@ installer from the same release. Download the installer and `SHA256SUMS.txt`
 from the matching Aywa GitHub Release, then verify the installer:
 
 ```powershell
-Get-FileHash .\Aywa_0.3.1_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Aywa_0.3.2_x64-setup.exe -Algorithm SHA256
 ```
 
 Compare the lowercase SHA-256 output with the installer line in

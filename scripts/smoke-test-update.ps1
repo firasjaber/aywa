@@ -27,11 +27,18 @@ function Invoke-TestInstaller([string]$Path, [string[]]$Arguments) {
     if ($process.ExitCode -ne 0) { throw "Installer failed with exit code $($process.ExitCode)." }
 }
 
+function Get-InstalledVersion {
+    $info = (Get-Item -LiteralPath $installedExecutable).VersionInfo
+    # Tauri overrides numeric Windows versions; display strings still use Cargo's version.
+    return [version]::new($info.ProductMajorPart, $info.ProductMinorPart, $info.ProductBuildPart)
+}
+
 try {
     Invoke-TestInstaller $BaselineInstaller @('/S')
     if (!(Test-Path -LiteralPath $installedExecutable)) { throw 'Baseline installation failed.' }
-    if ((Get-Item -LiteralPath $installedExecutable).VersionInfo.ProductVersion -notmatch '^0\.0\.0(?:\.|$)') {
-        throw 'Baseline executable version is incorrect.'
+    $baselineVersion = Get-InstalledVersion
+    if ($baselineVersion -ne [version]'0.0.0') {
+        throw "Expected baseline executable version 0.0.0, found $baselineVersion."
     }
     $fixtures = @{
         'state/settings.json' = '{"version":1,"saveHistory":true,"hotkey":"control+alt+Space","rules":[{"heardAs":"test","useInstead":"passed"}]}'
@@ -49,8 +56,8 @@ try {
     }
 
     Invoke-TestInstaller $UpdateInstaller @('/S', '/UPDATE', '/R')
-    $actualVersion = (Get-Item -LiteralPath $installedExecutable).VersionInfo.ProductVersion
-    if ($actualVersion -notmatch "^$([regex]::Escape($ExpectedVersion))(?:\.|$)") { throw "Unexpected installed version: $actualVersion" }
+    $actualVersion = Get-InstalledVersion
+    if ($actualVersion -ne [version]$ExpectedVersion) { throw "Expected installed version $ExpectedVersion, found $actualVersion." }
     $deadline = (Get-Date).AddSeconds(30)
     do {
         $restarted = @(Get-Process -Name Aywa -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $installedExecutable })
