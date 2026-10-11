@@ -62,17 +62,38 @@ Do not run `prepare:python-runtime:lock` during a normal build. That command int
 
 ```powershell
 npm run check
+npm run test
 npm run build
-cargo test --manifest-path src-tauri/Cargo.toml
+node --test scripts/prepare-update-assets.test.mjs scripts/verify-release-policy.test.mjs
+cargo test --manifest-path src-tauri/Cargo.toml --locked
 python -m pytest src-tauri/python/tests -v
 ```
 
 ### Build a Windows installer
 
+Distributed builds require the update signing key that matches the public key in `src-tauri/tauri.conf.json`. The private key is stored outside this repository at `%LOCALAPPDATA%\AywaRelease\updater.key` on the maintainer's machine. It must have a secure backup. Do not create a replacement key for normal builds: existing installations trust the configured public key.
+
 ```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = Join-Path $env:LOCALAPPDATA 'AywaRelease\updater.key'
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ''
 npm run tauri:build
+Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY
+Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 ```
 
-The command prepares the locked embedded Python files, builds the frontend, compiles the Rust application, and creates Tauri bundles under `src-tauri\target\release\bundle`.
+The generated key uses an empty password. If you encrypt it later, supply its password through your secret manager instead. The command prepares the locked embedded Python files, builds the frontend, compiles the Rust application, and creates the NSIS installer and its `.sig` file under `src-tauri\target\release\bundle\nsis`.
 
-Before distributing a build, follow the [release checklist](RELEASE_CHECKLIST.md). The GitHub release workflow tests the build, publishes a SHA-256 hash, and smoke-installs the unsigned installer on a fresh Windows runner.
+For a local development installer without a signing key, disable update artifacts with a temporary build override. Do not distribute this build as an in-app update:
+
+```powershell
+npm run prepare:python-runtime
+$developmentConfig = Join-Path $env:TEMP 'aywa-development-build.json'
+[System.IO.File]::WriteAllText($developmentConfig, '{"bundle":{"createUpdaterArtifacts":false}}')
+npx.cmd --no-install tauri build --bundles nsis --config $developmentConfig
+```
+
+Development builds skip automatic update checks. Manual checks remain available. Production builds check at startup and once a day; the Rust app keeps the schedule running while its window is hidden.
+
+Before distributing a build, follow the [release checklist](RELEASE_CHECKLIST.md). Configure `TAURI_SIGNING_PRIVATE_KEY` and, if needed, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` as GitHub Actions repository secrets. The key secret must contain the contents of the matching private key file, rather than its local file path. Do not paste that value into source files, logs, or release assets.
+
+The GitHub release workflow verifies a signed installer download, tests a fresh installation and an upgrade on an isolated Windows runner, then publishes all update assets together. Update signatures protect downloads used by Aywa's updater. The Windows installer still has no Authenticode publisher certificate.

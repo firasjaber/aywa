@@ -30,6 +30,16 @@ Open **Aywa** from the Windows Start menu. Aywa runs in the notification area (s
 
 Closing the Settings window does not quit Aywa. To quit, right-click the tray icon and select **Quit**.
 
+## Update Aywa
+
+Aywa checks GitHub for a newer stable version after startup and once a day while it runs, including when the Settings window is closed. The footer on every tab shows your installed version. Select **Check for updates** to check immediately. A failed automatic check stays quiet; a failed manual check shows an error so you can try again.
+
+When a newer version is available, select **Download and install**. The footer shows download progress. Finish any recording, transcription, model download, or runtime preparation before installing. If work starts during the update download, Aywa keeps the verified download and offers **Install update** once you are ready.
+
+Installation closes and restarts Aywa. It preserves settings, rules, History, downloaded models, and runtime files. You do not need to delete or uninstall Aywa first. Aywa verifies the update signature before it can install the download. This signature does not provide a Windows verified publisher; Windows may still show a SmartScreen warning.
+
+An older version without update controls needs one manual installer update from [GitHub Releases](https://github.com/firasjaber/aywa/releases) to enable this feature. If an in-app update fails, try again or download the current installer from that page and install it over the existing version. Keep your local data folder when recovering an installation.
+
 ## Prepare Aywa for the first time
 
 Aywa needs a local transcription environment and a speech model. The first model activation can take several minutes because Aywa may install Python, PyTorch, and speech-recognition components. These downloads are large. Keep Aywa open and keep the computer connected to the internet.
@@ -89,6 +99,8 @@ Every successful transcription is saved automatically in the local **History** t
 History retains the text, time, and recording length only; the temporary WAV recording is still deleted after transcription. You can open an entry to read and copy it, delete individual entries, or permanently clear all History. Aywa does not upload recordings or transcription history.
 
 ## Privacy and diagnostics
+
+Update checks contact GitHub for version information. Selecting **Download and install** downloads the installer from GitHub. These requests do not include recordings, transcripts, or local model files.
 
 Aywa stores a temporary WAV only while it transcribes your speech locally, then deletes it. A recording left by an interrupted session is removed when Aywa next starts. In **Debug**, you can preview a safe issue report before copying it for support. The report excludes recordings, transcripts, file paths, usernames, command arguments, and raw subprocess output. Local diagnostics use one log per launch and retain at most 1 GB total, deleting the oldest sessions first.
 

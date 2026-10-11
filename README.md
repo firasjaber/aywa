@@ -11,9 +11,10 @@ Aywa is a Windows desktop app for local voice typing. Hold a global shortcut, sp
 - Uses `Ctrl` + `Alt` + `Space` as the default hold-to-talk shortcut and lets you change it in Settings.
 - Automatically selects a compatible CPU or NVIDIA CUDA runtime.
 - Lives in the Windows system tray when its Settings window is closed.
+- Checks for app updates at startup and once a day, with download and installation controls in the footer.
 - Provides runtime, GPU, model, and log diagnostics for support.
 
-Aywa contacts Python, PyPI/PyTorch, and Hugging Face services while preparing its local runtime and downloading models. Audio transcription itself is performed locally. See the [public-release audit](docs/PUBLIC_RELEASE_AUDIT.md) for current privacy limitations, including retained recordings and diagnostic logs.
+Aywa contacts Python, PyPI/PyTorch, and Hugging Face services while preparing its local runtime and downloading models. It contacts GitHub to check for app updates and download an update when you choose to install it. Audio transcription itself is performed locally. See the [public-release audit](docs/PUBLIC_RELEASE_AUDIT.md) for current privacy limitations, including retained recordings and diagnostic logs.
 
 Aywa keeps a WAV only while it is needed for local transcription, then deletes it. If a forced shutdown leaves a WAV behind, Aywa removes it at next startup. Diagnostics are stored locally in one log per launch and retained up to 1 GB total; the oldest sessions are removed first.
 
@@ -24,7 +25,9 @@ Aywa does not have a published installer yet. When releases are available:
 1. Open [GitHub Releases](https://github.com/firasjaber/aywa/releases).
 2. Download the unsigned Windows installer and its `SHA256SUMS.txt` file.
 3. Verify the installer hash before opening it; checksums verify file integrity, not the publisher's identity.
-3. Follow the [user guide](docs/USER_GUIDE.md) to prepare Aywa, download a model, and dictate your first text.
+4. Follow the [user guide](docs/USER_GUIDE.md) to prepare Aywa, download a model, and dictate your first text.
+
+After installing a version with update support, use **Download and install** in the footer when a new version is available. Aywa restarts and keeps your settings, rules, History, models, and runtime files. An older version without these controls needs one manual installer update to enable them. See [Updating Aywa](docs/USER_GUIDE.md#update-aywa).
 
 For installation details and source builds, read the [setup guide](docs/SETUP.md).
 
@@ -55,6 +58,7 @@ The first managed-runtime preparation downloads a Python distribution. Activatin
 
 ```powershell
 npm run check
+npm run test
 npm run build
 cargo test --manifest-path src-tauri/Cargo.toml
 python -m pytest src-tauri/python/tests -v
