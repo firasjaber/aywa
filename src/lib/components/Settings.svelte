@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import History from './History.svelte';
+	import AppUpdate from './AppUpdate.svelte';
 	import HistoryPreference from './HistoryPreference.svelte';
 	import Rules from './Rules.svelte';
 	import ShortcutPreference from './ShortcutPreference.svelte';
@@ -419,6 +420,7 @@
 		{/if}
 
 		<footer class="settings-footer">
+			<AppUpdate />
 			Built by
 			<a
 				href={authorWebsiteUrl}

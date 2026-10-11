@@ -255,9 +255,28 @@ fn reset_runtime_profile_to_auto(
     aywa_lib::reset_runtime_profile_to_auto(&app, state.inner())
 }
 
+#[tauri::command]
+fn get_update_status(
+    state: State<'_, aywa_lib::updater::UpdaterState>,
+) -> aywa_lib::updater::UpdateSnapshot {
+    state.snapshot()
+}
+
+#[tauri::command]
+async fn check_for_updates(app: AppHandle) -> aywa_lib::updater::UpdateSnapshot {
+    aywa_lib::updater::check(&app, true).await
+}
+
+#[tauri::command]
+fn install_update(app: AppHandle) -> Result<aywa_lib::updater::UpdateSnapshot, String> {
+    aywa_lib::updater::start_install(app)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(aywa_lib::updater::UpdaterState::default())
         .manage(AppStateManager::default())
         .manage(RuntimeHandles::default())
         .manage(ModelManagerState::default())
@@ -307,10 +326,14 @@ fn main() {
                     "failed to reconcile model manager state: {error}"
                 ));
             }
+            aywa_lib::updater::start_schedule(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             show_settings,
+            get_update_status,
+            check_for_updates,
+            install_update,
             get_current_state,
             list_history,
             read_history_entry,

@@ -216,6 +216,7 @@ pub fn select_model<R: Runtime>(
     state: &ModelManagerState,
     model_id: ModelId,
 ) -> Result<ModelManagerSnapshot, String> {
+    let _operation = crate::updater::begin_work(app)?;
     let path = registry_path(app).map_err(|error| error.to_string())?;
 
     {
@@ -235,6 +236,7 @@ pub fn download_model<R: Runtime>(
     state: &ModelManagerState,
     model_id: ModelId,
 ) -> Result<ModelManagerSnapshot, String> {
+    let operation = crate::updater::begin_work(app)?;
     {
         let mut transient_statuses = state
             .transient_statuses
@@ -247,6 +249,7 @@ pub fn download_model<R: Runtime>(
     let app = app.clone();
 
     thread::spawn(move || {
+        let _operation = operation;
         let result = (|| -> anyhow::Result<InstalledModel> {
             eprintln!(
                 "[model_manager] download_model start model_id={}",
@@ -393,6 +396,7 @@ pub fn load_model<R: Runtime>(
     state: &ModelManagerState,
     model_id: ModelId,
 ) -> Result<ModelManagerSnapshot, String> {
+    let operation = crate::updater::begin_work(app)?;
     match current_bootstrap_status(state)? {
         WorkerRuntimeBootstrapStatus::Ready => {}
         WorkerRuntimeBootstrapStatus::Idle => {
@@ -444,6 +448,7 @@ pub fn load_model<R: Runtime>(
     let app = app.clone();
     let prepared = prepare_model(&installed, model_id);
     thread::spawn(move || {
+        let _operation = operation;
         let state = app.state::<ModelManagerState>();
         complete_model_load(&app, state.inner(), model_id, prepared);
     });
@@ -545,6 +550,7 @@ pub fn unload_model<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
+    let _operation = crate::updater::begin_work(app)?;
     transcribe::unload(app)?;
     if let Ok(mut live_device) = state.live_execution_device.lock() {
         *live_device = None;
@@ -568,6 +574,7 @@ pub fn clear_model_cache<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
+    let _operation = crate::updater::begin_work(app)?;
     let cache_root = cache_root(app).map_err(|error| error.to_string())?;
     let models_root = models_root(app).map_err(|error| error.to_string())?;
     let path = registry_path(app).map_err(|error| error.to_string())?;
@@ -622,6 +629,7 @@ pub fn set_runtime_selection_mode<R: Runtime>(
     state: &ModelManagerState,
     selection_mode: runtime_profile::types::RuntimeSelectionMode,
 ) -> Result<ModelManagerSnapshot, String> {
+    let _operation = crate::updater::begin_work(app)?;
     runtime_profile::service::set_selection_mode(app, selection_mode)?;
     schedule_runtime_bootstrap(app, state)?;
     emit_snapshot(app, state)
@@ -632,6 +640,7 @@ pub fn select_runtime_profile<R: Runtime>(
     state: &ModelManagerState,
     profile_id: String,
 ) -> Result<ModelManagerSnapshot, String> {
+    let _operation = crate::updater::begin_work(app)?;
     runtime_profile::service::select_profile(app, &profile_id)?;
     schedule_runtime_bootstrap(app, state)?;
     emit_snapshot(app, state)
@@ -641,6 +650,7 @@ pub fn apply_runtime_profile_now<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
+    let _operation = crate::updater::begin_work(app)?;
     runtime_profile::service::force_reprovision(app)?;
     schedule_runtime_bootstrap(app, state)?;
     emit_snapshot(app, state)
@@ -650,6 +660,7 @@ pub fn test_runtime_profile<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
+    let _operation = crate::updater::begin_work(app)?;
     runtime_profile::service::force_reprovision(app)?;
     schedule_runtime_bootstrap(app, state)?;
     emit_snapshot(app, state)
@@ -659,6 +670,7 @@ pub fn redetect_runtime_profile<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
+    let _operation = crate::updater::begin_work(app)?;
     runtime_profile::service::force_reprovision(app)?;
     schedule_runtime_bootstrap(app, state)?;
     emit_snapshot(app, state)
@@ -668,6 +680,7 @@ pub fn reset_runtime_profile_to_auto<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,
 ) -> Result<ModelManagerSnapshot, String> {
+    let _operation = crate::updater::begin_work(app)?;
     runtime_profile::service::reset_to_auto(app)?;
     schedule_runtime_bootstrap(app, state)?;
     emit_snapshot(app, state)
@@ -687,6 +700,7 @@ fn schedule_runtime_bootstrap<R: Runtime>(
     app: &AppHandle<R>,
     state: &ModelManagerState,
 ) -> Result<(), String> {
+    let operation = crate::updater::begin_work(app)?;
     {
         let mut bootstrap = state
             .worker_runtime_bootstrap
@@ -718,6 +732,7 @@ fn schedule_runtime_bootstrap<R: Runtime>(
     let app = app.clone();
 
     thread::spawn(move || {
+        let _operation = operation;
         diagnostics::log("[model_manager] runtime bootstrap thread started");
         let state = app.state::<ModelManagerState>();
         let emit_progress =

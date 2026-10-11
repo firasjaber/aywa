@@ -45,7 +45,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "resources": [
       "resources/python/*"
     ],
@@ -53,6 +55,18 @@
       "../static/logo/png/app-dark/aywa-dark-1024.png",
       "../static/logo/desktop/macos/aywa.icns",
       "../static/logo/desktop/windows/aywa.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "windows": {
+        "installMode": "passive"
+      },
+      "endpoints": [
+        "https://github.com/firasjaber/aywa/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc2NTNERDU3OEQ4MUQzMDIKUldRQzA0R05WOTFUZGtiODhOQUFTUllMdUlwVHlua2dMUFlxaHFETXRKc2F2NkhISjFlMXEwTTMK"
+    }
   }
 }

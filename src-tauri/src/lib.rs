@@ -13,6 +13,7 @@ pub mod settings;
 pub mod state;
 pub mod transcribe;
 pub mod transcription_rules;
+pub mod updater;
 
 use std::{path::PathBuf, thread, time::Duration};
 
@@ -39,7 +40,7 @@ pub const ERROR_RESET_DELAY_MS: u64 = 4_000;
 
 pub struct RuntimeHandles {
     pub hotkey: std::sync::Mutex<Option<hotkey::HotkeyHandle>>,
-    pub recorder: std::sync::Mutex<Option<RecorderSession>>,
+    pub recorder: std::sync::Mutex<Option<(RecorderSession, updater::OperationPermit)>>,
     pub transcription: std::sync::Mutex<Option<transcribe::WorkerHandle>>,
 }
 
@@ -215,6 +216,7 @@ pub fn app_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
 }
 
 pub fn bootstrap_transcription_runtime<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let _operation = updater::begin_work(app)?;
     let root = app_data_dir(app)?;
     transcribe::bootstrap_runtime(&root)?;
     let _python_exe = python_runtime::ensure_python_runtime(app, &root)?;
@@ -222,6 +224,7 @@ pub fn bootstrap_transcription_runtime<R: Runtime>(app: &AppHandle<R>) -> Result
 }
 
 pub fn start_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let operation = updater::begin_work(app)?;
     let handles: State<'_, RuntimeHandles> = app.state();
     if handles
         .transcription
@@ -245,7 +248,7 @@ pub fn start_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
             *handles
                 .recorder
                 .lock()
-                .map_err(|_| "recorder mutex poisoned".to_string())? = Some(session);
+                .map_err(|_| "recorder mutex poisoned".to_string())? = Some((session, operation));
             Ok(())
         }
         Err(error) => {
@@ -258,7 +261,7 @@ pub fn start_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
 
 pub fn stop_recording<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let handles: State<'_, RuntimeHandles> = app.state();
-    let session = handles
+    let (session, _operation) = handles
         .recorder
         .lock()
         .map_err(|_| "recorder mutex poisoned".to_string())?
