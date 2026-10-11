@@ -69,6 +69,16 @@ export async function verifyReleasePolicy(root, { tag } = {}) {
   if (!Array.isArray(tauriMetadata.bundle?.targets) || tauriMetadata.bundle.targets.length !== 1 || tauriMetadata.bundle.targets[0] !== 'nsis') {
     failures.push('tauri.conf.json must target only the Windows NSIS bundle.');
   }
+  const updater = tauriMetadata.plugins?.updater;
+  if (tauriMetadata.bundle?.createUpdaterArtifacts !== true) {
+    failures.push('tauri.conf.json must create updater artifacts.');
+  }
+  if (typeof updater?.pubkey !== 'string' || !Buffer.from(updater.pubkey, 'base64').toString('utf8').startsWith('untrusted comment: minisign public key:')) {
+    failures.push('tauri.conf.json must contain the updater public key.');
+  }
+  if (JSON.stringify(updater?.endpoints) !== JSON.stringify(['https://github.com/firasjaber/aywa/releases/latest/download/latest.json']) || updater?.dangerousInsecureTransportProtocol || updater?.allowDowngrades) {
+    failures.push('tauri.conf.json must use the stable HTTPS update endpoint without allowing insecure transport or downgrades.');
+  }
   for (const path of ['SECURITY.md', 'docs/RELEASE_CHECKLIST.md']) {
     if (!(await exists(root, path))) {
       failures.push(`${path} must document public release operations.`);

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -27,7 +27,10 @@ async function createFixture({ packageVersion = '0.1.0', cargoVersion = '0.1.0',
     writeFile(join(root, 'THIRD_PARTY_NOTICES.md'), validNotice),
     writeFile(join(root, 'package.json'), JSON.stringify({ license: 'MIT', version: packageVersion })),
     writeFile(join(root, 'src-tauri', 'Cargo.toml'), `[package]\nversion = "${cargoVersion}"\nauthors = ["${author}"]\nlicense = "MIT"\nrepository = "https://github.com/firasjaber/aywa"\n`),
-    writeFile(join(root, 'src-tauri', 'tauri.conf.json'), JSON.stringify({ version: tauriVersion, bundle: { targets } })),
+    writeFile(join(root, 'src-tauri', 'tauri.conf.json'), JSON.stringify({ version: tauriVersion, bundle: { targets, createUpdaterArtifacts: true }, plugins: { updater: {
+      pubkey: Buffer.from('untrusted comment: minisign public key: TEST\nRWfixture\n').toString('base64'),
+      endpoints: ['https://github.com/firasjaber/aywa/releases/latest/download/latest.json']
+    } } })),
     security ? writeFile(join(root, 'SECURITY.md'), '# Security') : Promise.resolve(),
     checklist ? writeFile(join(root, 'docs', 'RELEASE_CHECKLIST.md'), checklistContent) : Promise.resolve()
   ]);
@@ -38,6 +41,22 @@ test('accepts synchronized unsigned-release policy requirements', async (t) => {
   const root = await createFixture();
   t.after(() => rm(root, { recursive: true, force: true }));
   assert.deepEqual(await verifyReleasePolicy(root, { tag: 'v0.1.0' }), []);
+});
+
+test('rejects missing update signing and insecure feeds', async (t) => {
+  const root = await createFixture();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, 'src-tauri/tauri.conf.json');
+  const config = JSON.parse(await readFile(path, 'utf8'));
+  config.bundle.createUpdaterArtifacts = false;
+  config.plugins.updater.pubkey = '';
+  config.plugins.updater.dangerousInsecureTransportProtocol = true;
+  await writeFile(path, JSON.stringify(config));
+  assert.deepEqual(await verifyReleasePolicy(root), [
+    'tauri.conf.json must create updater artifacts.',
+    'tauri.conf.json must contain the updater public key.',
+    'tauri.conf.json must use the stable HTTPS update endpoint without allowing insecure transport or downgrades.'
+  ]);
 });
 
 test('reports version, Windows target, documentation, author, and tag failures', async (t) => {

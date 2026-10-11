@@ -1,4 +1,4 @@
-name: Unsigned Windows Release
+name: Windows Release
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: signed-release-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -16,62 +16,126 @@ jobs:
     runs-on: windows-2022
     env:
       RELEASE_TAG: ${{ github.ref_name }}
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22.15.0
           cache: npm
-      - name: Install frontend dependencies
-        run: npm ci
-      - name: Install Python test dependency
-        run: python -m pip install --disable-pip-version-check --requirement src-tauri/python/requirements-test.txt
-      - name: Prepare embedded Python resources
-        run: npm run prepare:python-runtime
-      - name: Verify release tag
-        shell: pwsh
+      - name: Check update signing credentials
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) { throw 'Configure TAURI_SIGNING_PRIVATE_KEY before publishing updater-enabled releases.' }
+      - name: Install dependencies and prepare embedded Python
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
+          python -m pip install --disable-pip-version-check --requirement src-tauri/python/requirements-test.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Python test dependency installation failed.' }
+          npm run prepare:python-runtime
+          if ($LASTEXITCODE -ne 0) { throw 'Python runtime preparation failed.' }
+      - name: Verify release tag and run checks
         run: |
           $ErrorActionPreference = 'Stop'
           node scripts/verify-release-policy.mjs --tag "$env:RELEASE_TAG"
-      - name: Run checks and tests
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
+          if ($LASTEXITCODE -ne 0) { throw 'Release policy check failed.' }
           npm run check
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend type check failed.' }
+          npm run test
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed.' }
           npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
+          node --test scripts/prepare-update-assets.test.mjs scripts/verify-release-policy.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Release asset tests failed.' }
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          if ($LASTEXITCODE -ne 0) { throw 'Rust format check failed.' }
           cargo test --manifest-path src-tauri/Cargo.toml --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed.' }
           python -m pytest src-tauri/python/tests -v
-      - name: Build Windows installer
-        run: npx.cmd --no-install tauri build --bundles nsis
-      - name: Create checksums and smoke-install the unsigned installer
-        shell: pwsh
+          if ($LASTEXITCODE -ne 0) { throw 'Python tests failed.' }
+      - name: Build installer and sign update
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          npx.cmd --no-install tauri build --bundles nsis
+          if ($LASTEXITCODE -ne 0) { throw 'Signed update build failed.' }
+      - name: Prepare and verify update assets
+        run: |
+          node scripts/prepare-update-assets.mjs "$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw 'Update asset preparation failed.' }
+          $installer = @(Get-ChildItem release-assets -File -Filter '*.exe')
+          if ($installer.Count -ne 1) { throw 'Expected exactly one release installer.' }
+          $env:AYWA_TEST_SIGNED_INSTALLER = $installer[0].FullName
+          cargo test --manifest-path src-tauri/Cargo.toml --locked verified_download_accepts_signed_bytes_and_rejects_changed_bytes
+          if ($LASTEXITCODE -ne 0) { throw 'Installer signature does not match the app public key.' }
+      - name: Smoke-install on a fresh runner
         run: |
           $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
-          $installer = Get-ChildItem 'src-tauri\target\release\bundle\nsis' -Filter '*.exe' -File
-          if ($installer.Count -ne 1) { throw "Expected one NSIS installer, found $($installer.Count)." }
-          Copy-Item -LiteralPath $installer.FullName -Destination release-assets
-          Get-ChildItem release-assets -File -Filter '*.exe' |
-            Get-FileHash -Algorithm SHA256 |
-            ForEach-Object { "{0} *{1}" -f $_.Hash.ToLowerInvariant(), $_.Name } |
-            Set-Content -NoNewline release-assets\SHA256SUMS.txt
-          $releaseInstaller = Get-ChildItem release-assets -File -Filter '*.exe'
-          Start-Process -FilePath $releaseInstaller.FullName -ArgumentList '/S' -Wait
+          $installedDirectory = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Aywa'))
+          if (Test-Path -LiteralPath $installedDirectory) { throw 'Fresh runner already contains an Aywa installation.' }
+          $installer = Get-ChildItem release-assets -File -Filter '*.exe'
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -WindowStyle Hidden -PassThru
+          if (!$process.WaitForExit(120000) -or $process.ExitCode -ne 0) { throw 'Fresh installation failed.' }
           $installedExecutable = Join-Path $env:LOCALAPPDATA 'Aywa\Aywa.exe'
-          if (!(Test-Path -LiteralPath $installedExecutable)) { throw "Smoke install did not create $installedExecutable." }
+          if (!(Test-Path -LiteralPath $installedExecutable)) { throw 'Fresh install did not create the executable.' }
           $uninstaller = Join-Path $env:LOCALAPPDATA 'Aywa\uninstall.exe'
-          if (Test-Path -LiteralPath $uninstaller) { Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait }
+          # _?= keeps NSIS in this process so waiting also waits for uninstall completion.
+          $process = Start-Process -FilePath $uninstaller -ArgumentList "/S _?=$installedDirectory" -WindowStyle Hidden -PassThru
+          if (!$process.WaitForExit(120000) -or $process.ExitCode -ne 0) { throw 'Fresh-install cleanup failed.' }
+          if ($installedDirectory -ne [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Aywa'))) { throw 'Unexpected fresh-install directory.' }
+          if (Test-Path -LiteralPath $installedDirectory) { Remove-Item -LiteralPath $installedDirectory -Recurse -Force }
+      - name: Build an unpublished baseline and verify upgrading
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $baselineConfig = Join-Path $env:RUNNER_TEMP 'aywa-baseline.json'
+          '{"version":"0.0.0","bundle":{"createUpdaterArtifacts":false}}' | Set-Content -LiteralPath $baselineConfig -Encoding utf8
+          npx.cmd --no-install tauri build --bundles nsis --config $baselineConfig
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline installer build failed.' }
+          $baselineInstaller = Join-Path (Get-Location) 'src-tauri/target/release/bundle/nsis/Aywa_0.0.0_x64-setup.exe'
+          $updateInstaller = Get-ChildItem release-assets -File -Filter '*.exe'
+          ./scripts/smoke-test-update.ps1 -BaselineInstaller $baselineInstaller -UpdateInstaller $updateInstaller.FullName -ExpectedVersion ($env:RELEASE_TAG.Substring(1))
       - name: Upload verified release assets
         uses: actions/upload-artifact@v4
         with:
           name: aywa-${{ github.ref_name }}-windows
           path: release-assets
           if-no-files-found: error
-      - name: Publish GitHub Release
+      - name: Create draft release with all assets
         uses: softprops/action-gh-release@v2
         with:
           name: Aywa ${{ github.ref_name }}
+          draft: true
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             release-assets/*.exe
+            release-assets/*.exe.sig
+            release-assets/latest.json
             release-assets/SHA256SUMS.txt
+      - name: Verify uploaded assets and publish the complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $release = gh release view "$env:RELEASE_TAG" --json assets,isDraft | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or !$release.isDraft) { throw 'Expected a draft release.' }
+          $expected = @(Get-ChildItem release-assets -File)
+          if ($release.assets.Count -ne $expected.Count) { throw 'Release asset count does not match.' }
+          foreach ($file in $expected) {
+            $asset = @($release.assets | Where-Object { $_.name -eq $file.Name })
+            if ($asset.Count -ne 1 -or $asset[0].size -ne $file.Length) { throw "Missing or incomplete uploaded asset: $($file.Name)" }
+          }
+          $downloadDirectory = Join-Path $env:RUNNER_TEMP 'aywa-upload-verification'
+          gh release download "$env:RELEASE_TAG" --dir $downloadDirectory
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the draft assets for verification.' }
+          foreach ($file in $expected) {
+            if ((Get-FileHash -LiteralPath $file.FullName).Hash -ne (Get-FileHash -LiteralPath (Join-Path $downloadDirectory $file.Name)).Hash) { throw "Uploaded asset checksum failed: $($file.Name)" }
+          }
+          gh release edit "$env:RELEASE_TAG" --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Complete release publication failed.' }
