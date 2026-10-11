@@ -33,7 +33,7 @@ export async function prepareUpdateAssets(root, { tag, installerDir = join(root,
   const expected = [name, `${name}.sig`, 'latest.json', 'SHA256SUMS.txt'];
   if ((await readdir(outputDir)).some((file) => !expected.includes(file))) throw new Error('Release directory contains unexpected assets.');
   await copyFile(join(installerDir, name), join(outputDir, name));
-  await writeFile(join(outputDir, `${name}.sig`), `${signature}\n`);
+  await writeFile(join(outputDir, `${name}.sig`), signature);
   await writeFile(join(outputDir, 'latest.json'), `${JSON.stringify(metadata, null, 2)}\n`);
   await writeFile(join(outputDir, 'SHA256SUMS.txt'), `${createHash('sha256').update(bytes).digest('hex')} *${name}\n`);
   return metadata;

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { verifyReleasePolicy } from './verify-release-policy.mjs';
@@ -41,6 +43,28 @@ test('accepts synchronized unsigned-release policy requirements', async (t) => {
   const root = await createFixture();
   t.after(() => rm(root, { recursive: true, force: true }));
   assert.deepEqual(await verifyReleasePolicy(root, { tag: 'v0.1.0' }), []);
+});
+
+test('CLI validates the supplied checkout and rejects mismatched or missing tags', async (t) => {
+  const root = await createFixture();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const script = fileURLToPath(new URL('./verify-release-policy.mjs', import.meta.url));
+  const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
+  assert.equal(run(root).status, 0);
+  assert.equal(run(root, '--tag', 'v0.1.0').status, 0);
+  const mismatch = run(root, '--tag', 'v99.0.0');
+  assert.equal(mismatch.status, 1);
+  assert.match(mismatch.stderr, /must match version 0\.1\.0/);
+  const missing = run(root, '--tag');
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /--tag requires a release tag/);
+  const packagePath = join(root, 'package.json');
+  const metadata = JSON.parse(await readFile(packagePath, 'utf8'));
+  metadata.version = '0.1.1';
+  await writeFile(packagePath, JSON.stringify(metadata));
+  const invalidCheckout = run(root);
+  assert.equal(invalidCheckout.status, 1);
+  assert.match(invalidCheckout.stderr, /must use the same version/);
 });
 
 test('rejects missing update signing and insecure feeds', async (t) => {

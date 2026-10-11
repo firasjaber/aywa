@@ -29,6 +29,7 @@ test('generates the exact release URL, signature, and checksum asset set', async
   assert.equal(metadata.version, tag.slice(1));
   assert.equal(metadata.platforms['windows-x86_64'].url, `https://github.com/firasjaber/aywa/releases/download/${tag}/${name}`);
   assert.ok(metadata.platforms['windows-x86_64'].signature);
+  assert.equal(await readFile(join(root, 'release-assets', `${name}.sig`), 'utf8'), metadata.platforms['windows-x86_64'].signature);
   assert.match(await readFile(join(root, 'release-assets/SHA256SUMS.txt'), 'utf8'), /^[a-f0-9]{64} \*Aywa_/);
   assert.deepEqual(JSON.parse(await readFile(join(root, 'release-assets/latest.json'), 'utf8')), metadata);
 });

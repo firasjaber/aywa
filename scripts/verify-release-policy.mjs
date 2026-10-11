@@ -110,7 +110,10 @@ async function main() {
   const arguments_ = process.argv.slice(2);
   const tagIndex = arguments_.indexOf('--tag');
   const tag = tagIndex === -1 ? undefined : arguments_[tagIndex + 1];
-  const rootArgument = arguments_.find((argument, index) => argument !== '--tag' && index !== tagIndex + 1);
+  if (tagIndex !== -1 && (tag === undefined || tag.startsWith('--'))) {
+    throw new Error('--tag requires a release tag such as v0.3.1.');
+  }
+  const rootArgument = arguments_.find((argument, index) => argument !== '--tag' && (tagIndex === -1 || index !== tagIndex + 1));
   const root = rootArgument ? resolve(rootArgument) : defaultRoot;
   const failures = await verifyReleasePolicy(root, { tag });
   for (const failure of failures) {
