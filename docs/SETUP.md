@@ -28,7 +28,7 @@ Aywa installers are unsigned. Windows may show an unknown-publisher or SmartScre
 Install these Windows tools before cloning Aywa:
 
 - Git.
-- Node.js 20.19 or newer (or Node.js 22.12 or newer), with npm.
+- Node.js 22.15.0 or newer, with npm.
 - Rust using `rustup`; the project pins Rust 1.95.0.
 - Microsoft C++ Build Tools with the **Desktop development with C++** workload and a Windows SDK.
 - Microsoft Edge WebView2 Runtime (included with current Windows versions).

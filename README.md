@@ -1,33 +1,44 @@
 # Aywa
 
-Aywa is a Windows desktop app for local voice typing. Hold a global shortcut, speak, and release it; Aywa transcribes the recording on your computer, copies the result to the clipboard, and attempts to paste it into the active app.
+Fast, private voice transcription that runs entirely on your PC. Speak naturally and turn your words into text, with your audio processed locally and kept off the cloud.
 
-> **Early development:** Aywa currently supports Windows only. Official installers are published unsigned through GitHub Releases and accompanied by SHA-256 checksums.
+Aywa runs on Windows. Hold `Ctrl` + `Alt` + `Space`, speak, and release it. Aywa copies the text to your clipboard and tries to paste it into the active app. If pasting fails, press `Ctrl` + `V`.
+
+> Aywa is in early development. Windows installers do not have a verified publisher certificate. Release downloads include SHA-256 checksums.
 
 ## What Aywa does
 
-- Runs speech recognition locally after the required runtime and model files are installed.
-- Supports English and multilingual NVIDIA Parakeet models.
-- Uses `Ctrl` + `Alt` + `Space` as the default hold-to-talk shortcut and lets you change it in Settings.
-- Automatically selects a compatible CPU or NVIDIA CUDA runtime.
-- Lives in the Windows system tray when its Settings window is closed.
-- Checks for app updates at startup and once a day, with download and installation controls in the footer.
-- Provides runtime, GPU, model, and log diagnostics for support.
+- Transcribes speech locally after the initial setup and model download.
+- Supports English and multilingual speech with two available Parakeet models.
+- Lets you change the recording shortcut in Settings.
+- Applies your word replacement and deletion rules before saving or pasting text.
+- Saves transcription text in local History by default. You can turn this off or delete saved entries.
+- Selects a compatible runtime for your CPU or supported NVIDIA graphics card.
+- Runs in the Windows system tray when you close Settings.
+- Checks for updates at startup and once a day, with installation controls in the window footer.
 
-Aywa contacts Python, PyPI/PyTorch, and Hugging Face services while preparing its local runtime and downloading models. It contacts GitHub to check for app updates and download an update when you choose to install it. Audio transcription itself is performed locally. See the [public-release audit](docs/PUBLIC_RELEASE_AUDIT.md) for current privacy limitations, including retained recordings and diagnostic logs.
+When you activate a Parakeet model, Aywa automatically prepares everything it needs to run in the background. You do not need to install Python, dependencies, or configure the environment yourself. Choose, download, and activate a model in the app, then wait for **Ready to dictate**. The first setup needs an internet connection and can take several minutes. Aywa reuses the prepared environment on later launches.
 
-Aywa keeps a WAV only while it is needed for local transcription, then deletes it. If a forced shutdown leaves a WAV behind, Aywa removes it at next startup. Diagnostics are stored locally in one log per launch and retained up to 1 GB total; the oldest sessions are removed first.
+## Privacy
+
+Aywa processes audio on your PC. It does not upload recordings or transcription history.
+
+Temporary audio files are deleted after transcription. Aywa also removes recordings left by an interrupted session at the next startup. Transcription text stays in History until you delete it. To stop saving new text, turn off **Save transcriptions to History** in Settings.
+
+Setup downloads Python, transcription dependencies, and models from Python, PyPI/PyTorch, and Hugging Face services. Aywa also contacts GitHub for update checks and downloads. Transcription runs locally once setup is complete.
+
+Diagnostic logs stay on your PC, with a limit of 1 GB total. Aywa deletes the oldest logs first. See the [user guide](docs/USER_GUIDE.md#privacy-and-diagnostics) for details.
 
 ## Get started
 
-Aywa does not have a published installer yet. When releases are available:
+For a packaged Windows installer, check [GitHub Releases](https://github.com/firasjaber/aywa/releases). If no release is available, follow the source build instructions below.
 
 1. Open [GitHub Releases](https://github.com/firasjaber/aywa/releases).
 2. Download the unsigned Windows installer and its `SHA256SUMS.txt` file.
-3. Verify the installer hash before opening it; checksums verify file integrity, not the publisher's identity.
+3. Compare the installer hash with `SHA256SUMS.txt` before opening it. A matching checksum confirms file integrity, not publisher identity.
 4. Follow the [user guide](docs/USER_GUIDE.md) to prepare Aywa, download a model, and dictate your first text.
 
-After installing a version with update support, use **Download and install** in the footer when a new version is available. Aywa restarts and keeps your settings, rules, History, models, and runtime files. An older version without these controls needs one manual installer update to enable them. See [Updating Aywa](docs/USER_GUIDE.md#update-aywa).
+For later updates, select **Download and install** in the footer. Aywa restarts and keeps your settings, rules, History, and downloaded files. See [Updating Aywa](docs/USER_GUIDE.md#update-aywa) for details and instructions for older versions.
 
 For installation details and source builds, read the [setup guide](docs/SETUP.md).
 
@@ -39,11 +50,13 @@ For installation details and source builds, read the [setup guide](docs/SETUP.md
 - [Help and issue reports](docs/SUPPORT.md) — collect diagnostics and report a bug safely.
 - [Security policy](SECURITY.md) — report a vulnerability privately.
 - [Release checklist](docs/RELEASE_CHECKLIST.md) — verify releases and create a version tag.
-- [Public-release audit](docs/PUBLIC_RELEASE_AUDIT.md) — prioritized release risks and recommendations.
+- [Public-release audit](docs/PUBLIC_RELEASE_AUDIT.md) — historical findings from July 2026, not a current description of the app.
 
 ## Build from source
 
 Aywa uses Svelte 5 and TypeScript for its interface, Tauri 2 and Rust for the desktop application, and a managed Python runtime for NVIDIA NeMo transcription.
+
+Install the [build prerequisites](docs/SETUP.md#prerequisites) first, including Node.js 22.15.0 or newer and the Windows C++ build tools.
 
 ```powershell
 git clone https://github.com/firasjaber/aywa.git
@@ -52,7 +65,7 @@ npm ci
 npm run tauri:dev:managed-python
 ```
 
-The first managed-runtime preparation downloads a Python distribution. Activating a model later installs substantial PyTorch and transcription dependencies. Review the complete [developer setup](docs/SETUP.md#build-from-source) before starting.
+The first run downloads Python. Activating a model downloads additional dependencies and model files. Setup can take several minutes and needs at least 15 GB of free storage. Read the [setup guide](docs/SETUP.md#build-from-source) for details.
 
 ## Verify a checkout
 
@@ -60,7 +73,8 @@ The first managed-runtime preparation downloads a Python distribution. Activatin
 npm run check
 npm run test
 npm run build
-cargo test --manifest-path src-tauri/Cargo.toml
+node --test scripts/prepare-update-assets.test.mjs scripts/verify-release-policy.test.mjs
+cargo test --manifest-path src-tauri/Cargo.toml --locked
 python -m pytest src-tauri/python/tests -v
 ```
 
@@ -70,4 +84,4 @@ Check [troubleshooting](docs/TROUBLESHOOTING.md) first. If the problem remains, 
 
 ## License
 
-Aywa-owned source code and documentation are licensed under the [MIT License](LICENSE). Third-party components, Python/runtime packages, and model weights remain subject to their own terms; see [third-party notices and distribution policy](THIRD_PARTY_NOTICES.md). Public installers are released only after their bundled components have completed the policy's provenance, notice, and redistribution review.
+Aywa source code and documentation use the [MIT License](LICENSE). Third-party components and model weights have their own license terms. See [third-party notices and distribution policy](THIRD_PARTY_NOTICES.md) for details and installer release requirements.
